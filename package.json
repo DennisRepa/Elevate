@@ -1,6 +1,6 @@
 {
   "name": "@dennisrepa/elevate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "🪶 Elevate — Interactive Polyglot Terminal Dashboard & Agentic MCP Server for safe dependency updates across monorepos.",
   "type": "module",
   "main": "./dist/cli.js",
