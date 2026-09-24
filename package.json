@@ -1,0 +1,65 @@
+{
+  "name": "@dennisrepa/elevate",
+  "version": "1.0.0",
+  "description": "🪶 Elevate — Interactive Polyglot Terminal Dashboard & Agentic MCP Server for safe dependency updates across monorepos.",
+  "type": "module",
+  "main": "./dist/cli.js",
+  "bin": {
+    "elevate": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "cli",
+    "tui",
+    "dependencies",
+    "updater",
+    "monorepo",
+    "npm",
+    "maven",
+    "mcp",
+    "agentic"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsup",
+    "build:bundle": "node scripts/build-bundle.mjs",
+    "build:binary": "node scripts/build-binary.mjs",
+    "dev": "tsx src/index.tsx",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "npm run build"
+  },
+  "author": {
+    "name": "Dennis Répa",
+    "email": "dennis.maier.1989@gmail.com",
+    "url": "https://de.linkedin.com/in/dennismaier1989"
+  },
+  "funding": {
+    "type": "ko-fi",
+    "url": "https://ko-fi.com/dennisrepa"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "ink": "^6.3.0",
+    "picocolors": "^1.1.1",
+    "react": "^19.0.0",
+    "semver": "^7.6.3",
+    "tsx": "^4.19.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/semver": "^7.8.0",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2"
+  }
+}

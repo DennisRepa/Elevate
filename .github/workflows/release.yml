@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release-please:
+    name: Release Please (Changelog & Tags)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/')
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish-npm:
+    name: Publish to npm (OIDC Provenance)
+    needs: release-please
+    if: |
+      always() &&
+      (
+        needs.release-please.outputs.release_created == 'true' ||
+        github.event_name == 'workflow_dispatch' ||
+        startsWith(github.ref, 'refs/tags/')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+
+  build-binaries:
+    name: Build Binary (${{ matrix.os }} - ${{ matrix.arch }})
+    needs: [release-please, publish-npm]
+    if: |
+      always() &&
+      needs.publish-npm.result == 'success' &&
+      (
+        needs.release-please.outputs.release_created == 'true' ||
+        github.event_name == 'workflow_dispatch' ||
+        startsWith(github.ref, 'refs/tags/')
+      )
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            os: windows
+            arch: x64
+            binary_name: elevate-windows-x64.exe
+            archive_name: elevate-windows-x64.zip
+          - runner: ubuntu-latest
+            os: linux
+            arch: x64
+            binary_name: elevate-linux-x64
+            archive_name: elevate-linux-x64.tar.gz
+          - runner: macos-latest
+            os: darwin
+            arch: arm64
+            binary_name: elevate-darwin-arm64
+            archive_name: elevate-darwin-arm64.tar.gz
+          - runner: macos-13
+            os: darwin
+            arch: x64
+            binary_name: elevate-darwin-x64
+            archive_name: elevate-darwin-x64.tar.gz
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Latest with SEA)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Standalone Binary
+        run: npm run build:binary
+
+      - name: Package Binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist/${{ matrix.binary_name }}" -DestinationPath "dist/${{ matrix.archive_name }}"
+
+      - name: Package Binary (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          chmod +x dist/${{ matrix.binary_name }}
+          tar -czvf dist/${{ matrix.archive_name }} -C dist ${{ matrix.binary_name }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive_name }}
+          path: dist/${{ matrix.archive_name }}
+
+  upload-release-assets:
+    name: Upload Binaries to GitHub Release
+    needs: [release-please, build-binaries]
+    if: |
+      always() &&
+      needs.build-binaries.result == 'success' &&
+      (
+        needs.release-please.outputs.release_created == 'true' ||
+        github.event_name == 'workflow_dispatch' ||
+        startsWith(github.ref, 'refs/tags/')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all built binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name || (github.ref_type == 'tag' && github.ref_name || 'v1.0.0') }}
+          files: release-assets/*
