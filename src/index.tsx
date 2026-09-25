@@ -18,6 +18,7 @@ import { handleModulesCommand } from './cli/command-modules.js';
 import { handleScanCommand } from './cli/command-scan.js';
 import { handleVersionsCommand } from './cli/command-versions.js';
 import { handleUpdateCommand } from './cli/command-update.js';
+import { handleInitCommand } from './cli/command-init.js';
 import { startMcpServer } from './mcp/mcp-server.js';
 
 async function main() {
@@ -54,6 +55,11 @@ async function main() {
 
   if (options.subcommand === 'update') {
     const exitCode = await handleUpdateCommand(options, config);
+    process.exit(exitCode);
+  }
+
+  if (options.subcommand === 'init') {
+    const exitCode = await handleInitCommand(options);
     process.exit(exitCode);
   }
 

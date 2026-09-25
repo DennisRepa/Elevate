@@ -6,7 +6,7 @@
  */
 
 export interface CliOptions {
-  subcommand?: 'modules' | 'scan' | 'versions' | 'update' | 'mcp' | 'help';
+  subcommand?: 'modules' | 'scan' | 'versions' | 'update' | 'init' | 'mcp' | 'help';
   ecosystem?: 'npm' | 'maven';
   module?: string;
   channel?: 'stable' | 'all';
@@ -37,10 +37,10 @@ export function parseCliArgs(args: string[]): CliOptions {
     return { subcommand: 'mcp' };
   }
 
-  const validCommands = ['modules', 'scan', 'versions', 'update'] as const;
+  const validCommands = ['modules', 'scan', 'versions', 'update', 'init'] as const;
   const isSubcommand = validCommands.includes(first as any);
 
-  const subcommand = isSubcommand ? (first as 'modules' | 'scan' | 'versions' | 'update') : undefined;
+  const subcommand = isSubcommand ? (first as 'modules' | 'scan' | 'versions' | 'update' | 'init') : undefined;
   const remaining = isSubcommand ? rest : args;
 
   const result: CliOptions = { subcommand };
@@ -109,6 +109,7 @@ SUBCOMMANDS:
   scan                                  Scan dependencies for available updates
   versions <package>                    List all published versions of a package
   update                                Apply updates to specified or all packages
+  init                                  Configure AI coding tools (MCP + agent skills)
   mcp                                   Start stdio-based MCP server
 
 FLAGS:
@@ -130,5 +131,7 @@ EXAMPLES:
   elevate versions chalk --ecosystem=npm --json
   elevate update --module=apps/e2e-cockpit --packages=chalk@5.6.2 --json
   elevate update --ecosystem=npm --all --allow-major --dry-run
+  elevate init
+  elevate init --json
 `);
 }
