@@ -21,7 +21,7 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
   const server = new Server(
     {
       name: 'elevate-mcp',
-      version: '1.0.0',
+      version: '1.1.1',
     },
     {
       capabilities: {

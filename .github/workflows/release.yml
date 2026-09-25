@@ -57,13 +57,14 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   build-binaries:
     name: Build Binary (${{ matrix.os }} - ${{ matrix.arch }})
-    needs: [release-please, publish-npm]
+    needs: [release-please]
     if: |
       always() &&
-      needs.publish-npm.result == 'success' &&
       (
         needs.release-please.outputs.release_created == 'true' ||
         github.event_name == 'workflow_dispatch' ||
@@ -122,6 +123,9 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            codesign --sign - dist/${{ matrix.binary_name }} || true
+          fi
           chmod +x dist/${{ matrix.binary_name }}
           tar -czvf dist/${{ matrix.archive_name }} -C dist ${{ matrix.binary_name }}
 
@@ -153,8 +157,22 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Determine tag name
+        id: tag_info
+        shell: bash
+        run: |
+          if [ -n "${{ needs.release-please.outputs.tag_name }}" ]; then
+            echo "tag=${{ needs.release-please.outputs.tag_name }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.release-please.outputs.tag_name || (github.ref_type == 'tag' && github.ref_name || 'v1.0.0') }}
+          tag_name: ${{ steps.tag_info.outputs.tag }}
           files: release-assets/*
+          generate_release_notes: true
