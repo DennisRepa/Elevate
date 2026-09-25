@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/bcoe/standard-version) for commit guidelines.
 
+## [1.2.0](https://github.com/DennisRepa/Elevate/compare/v1.1.1...v1.2.0) (2026-09-25)
+
+
+### Features
+
+* initial commit for Elevate v1.0.0 ([7018ce4](https://github.com/DennisRepa/Elevate/commit/7018ce407c7c598d545d6d479955ba75904a88c6))
+
+
+### Bug Fixes
+
+* **ci:** configure automated GitHub release workflow and bump version to v1.1.1 ([cc8f9b4](https://github.com/DennisRepa/Elevate/commit/cc8f9b4956ade29405dceb4ffff293dc8cb07931))
+
 ## 1.1.1 (2026-09-25)
 
 ### Bug Fixes
