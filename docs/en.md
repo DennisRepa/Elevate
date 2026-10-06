@@ -20,8 +20,8 @@
 ## ✨ Features & Highlights
 
 1. **🌐 Polyglot Monorepo Support (npm & Maven):**
-   * **Node / npm:** Discovers root and workspace packages, calculates SemVer diffs, updates `package.json`, and runs `npm install`.
-   * **Java / Maven:** Scans the project tree for all `pom.xml` files (Spring Boot services, libraries, etc.), queries Maven Central, and verifies source code with `mvn test-compile`.
+   * **Node / npm:** Resolves workspaces exactly like npm (glob patterns such as `packages/**` included), calculates SemVer diffs, updates `package.json` (`dependencies`, `devDependencies`, `optionalDependencies`), runs `npm install` and checks the lockfile. Repositories managed by pnpm, Yarn or Bun are refused.
+   * **Java / Maven:** Finds every `pom.xml` (including the root POM), lets Maven compute the effective POM, looks up newer versions through the build's own repositories (mirrors, Nexus/Artifactory, credentials from `settings.xml`) and verifies the affected modules with `mvn test-compile`.
    * **Runtime Switch:** Press **`[E]`** anytime to switch between frontend and backend modules.
 
 2. **🔍 Pick a Specific Version (`[V]`):**
@@ -34,8 +34,10 @@
    * **`channel: "stable"` (Default):** Prevents accidental upgrades to pre-releases (`-alpha`, `-beta`, `-rc`, `-m1`, `-snapshot`).
    * **`channel: "all"`:** Displays all versions and highlights pre-releases with prominent magenta badges (`[BETA]`, `[RC]`, `[ALPHA]`).
 
-4. **🛡️ Monorepo Symlink & Internal Scope Protection:**
-   * Protects internal packages (e.g. `@my-org/*`, `com.mycompany.*`) from being overwritten by public registries.
+4. **🏢 Internal Dependencies (Workspace Modules & Private Registries):**
+   * Workspace modules that depend on each other are kept in line with their local versions (`[Align]`).
+   * Internal packages (`internalScopes`, e.g. `@my-org/*`, `com.mycompany.*`) are looked up only in private registries — never on a public one.
+   * See [Internal Dependencies & Safety](#-internal-dependencies--safety) below.
 
 5. **🐣 Animated Mascot ("Pip"):**
    * Positioned neatly in the bottom right corner of the dashboard.
@@ -51,6 +53,83 @@
 
 ---
 
+## 🏢 Internal Dependencies & Safety
+
+Every dependency is classified by **origin** before any registry is contacted:
+
+| Origin | Recognised by | Version source | Action |
+| :--- | :--- | :--- | :--- |
+| `workspace` | A module discovered in this repository | The module's **local** version | `align` |
+| `private` | `internalScopes`, or an explicit `@scope:registry` mapping in `.npmrc` | The private registry configured for it | `update` |
+| `public` | Everything else | The configured registry | `update` |
+
+The registry URL alone is deliberately **not** used to decide the origin: in most companies every request — public packages included — goes through one Artifactory or Nexus proxy.
+
+### Aligning workspace modules
+
+* **npm:** If a dependency's range does not include the local version of a workspace package, npm does **not** link the workspace — it installs a package with the same name from the registry. Elevate offers to align the range (e.g. `^1.0.0` ➔ `^2.0.0`). After `npm install` it checks `package-lock.json`: every aligned dependency must be `"link": true`, otherwise the update is rolled back. Ranges that npm always links (`*`, `file:`, `workspace:`) are left alone.
+* **Maven:** If a module depends on a module of the *same reactor* with a different version (e.g. `1.0.0` while the module is at `1.1.0-SNAPSHOT`), Elevate offers to align it. `${project.version}` references need no alignment.
+* The release channel does not apply to alignment: the local version — including `-SNAPSHOT` — is the target, because modules of one repository are built and tested together.
+
+### Private registries & dependency confusion
+
+* Internal packages are never looked up on a public registry. If the registry for an internal npm package resolves to `registry.npmjs.org`, it is listed as *not offered* with the reason, instead of being queried — asking a public registry about an internal name is exactly what a dependency-confusion attack exploits.
+* npm lookups use your npm configuration (`npm config`), Maven lookups use Maven itself — mirrors, private repositories and credentials apply without any Elevate-specific configuration, and Elevate never handles credentials.
+
+### Where Maven versions are written
+
+Maven's effective POM tells which version applies, not where it is written. Elevate locates the declaring literal — a dependency `<version>`, a `<dependencyManagement>` entry, a property (possibly in a parent POM) or an external `<parent>` — and edits exactly that text, preserving formatting and comments. Before editing, the literal is cross-checked against the effective version; if they differ (active profiles, command-line properties) or the version comes from an external parent/BOM, the dependency is listed as *not offered* with the reason. Artifacts sharing one version property are marked, and conflicting targets for a shared property are rejected.
+
+### Rollback
+
+Every update runs as one workflow: **snapshot ➔ write & install ➔ integrity check ➔ verification**. If installation, the integrity check or verification fails, every touched file (manifests, lockfile, parent POMs) is restored and `node_modules` is reinstalled. `--keep-on-failure` (CLI) or `keepOnFailure` (MCP) keeps the changes of a failed *verification* for investigation. Verification also runs once *before* the update: if it already fails there, a failure afterwards is reported as pre-existing and the update is kept instead of rolled back. A crashing verifier counts as a failed verification.
+
+### Verification
+
+* **npm:** `npm ls` at the repository root (missing, invalid or unmet dependencies across all workspaces), unless `postUpdateScript` is set.
+* **Maven:** `mvn test-compile -pl <changed modules> -amd` in the reactor — the changed modules *and every module depending on them*. A change to the aggregator POM rebuilds the whole reactor.
+
+### Requirements for Maven
+
+Elevate uses the project's Maven Wrapper (`mvnw` / `mvnw.cmd`) when present, otherwise `mvn` on the `PATH`. Without either, Maven scans fail with a clear message instead of guessing. Plugin versions are pinned for reproducible results (`maven-help-plugin` 3.5.2, `versions-maven-plugin` 2.22.0) and can be replaced per repository with `mavenPlugins` in `elevate.config.json` (see [Maven plugin versions](#maven-plugin-versions)). Scans write temporary files only to `target/.elevate-*` and remove them afterwards.
+
+### Repository root
+
+Elevate works the same wherever in the repository it is started. The root is found as follows:
+
+1. The nearest directory (from the start directory upwards) with an `elevate.config.json` is the root.
+2. Otherwise npm proposes the nearest directory whose `package.json` declares `workspaces`, and Maven proposes the top of the connected POM chain (a `<parent>` found through `<relativePath>` and any aggregator that lists the project in `<modules>`). The outermost proposal wins.
+3. Without any marker the start directory is the root.
+
+The search never leaves the version-control checkout: it stops at the nearest directory that contains a `.git` entry, so a stray `package.json` or `pom.xml` somewhere above the repository is never mistaken for its root. Manifests that cannot be parsed are skipped.
+
+### Package manager guard (npm)
+
+Elevate's Node.js support drives npm. In a repository managed by pnpm, Yarn or Bun it refuses to scan or change the npm modules, because `npm install` would create a second lockfile and a `node_modules` layout the project does not use. The package manager is recognised from the repository root, in this order: the `packageManager` field of `package.json` (`npm@`, `pnpm@`, `yarn@`, `bun@`), then `package-lock.json` / `npm-shrinkwrap.json`, `pnpm-lock.yaml` / `pnpm-workspace.yaml`, `yarn.lock` / `.yarnrc.yml`, `bun.lock` / `bun.lockb`; without any of them the repository is treated as npm. If Elevate is started inside a workspace package, the search continues in the parent directories up to the checkout (the nearest directory with a `.git` entry); without a checkout only the directory itself is examined. The refusal names the manager and the file that decided. Maven modules in the same repository, read-only version queries (`elevate versions`) and a custom `postUpdateScript` are not affected.
+
+### Dependency sections (npm)
+
+| Section | Scanned | Written |
+| :--- | :---: | :---: |
+| `dependencies`, `devDependencies`, `optionalDependencies` | yes | yes |
+| `peerDependencies`, `overrides`, `bundleDependencies` | no | never |
+
+A peer range tells consumers which versions a package works with; raising it because a newer version exists would be a breaking change nobody decided. A name declared in several scanned sections receives the new range in every one of them; for display, `optionalDependencies` take precedence over `dependencies` (as in npm), and a name that is also a development dependency is shown as one.
+
+### Reactor-scoped alignment (Maven)
+
+A dependency on another module is aligned to that module's local version only when both modules are built by the same outermost aggregator (the same reactor). Outside a reactor Maven resolves the dependency from a repository like any other artifact, even if a project with the same coordinates lies somewhere in the checkout (a sample, a fixture, an old copy), so such a dependency is looked up and offered as an ordinary update — `private` when it matches `internalScopes`, otherwise `public`. POM files below a project's `src` directory (test fixtures, `maven-invoker-plugin` projects, archetype templates) and below `node_modules`, `target`, `build`, `dist`, `out` or hidden directories are not modules, unless a `<modules>` section names them.
+
+### Maven plugin versions
+
+Elevate runs two Maven plugins: `maven-help-plugin` (reads the effective POM, default `3.5.2`) and `versions-maven-plugin` (looks up newer versions, default `2.22.0`). If your repository manager does not offer these versions, set others with `mavenPlugins` in `elevate.config.json`. A value must start with a digit and contain only letters, digits, `.` and `-` (at most 64 characters); anything else is replaced by the default and reported as a warning. When Maven cannot download a plugin, Elevate says so, names the plugin and the setting that replaces its version, and appends Maven's own error lines.
+
+### Windows paths
+
+On Windows `npm`, `mvn` and the Maven Wrapper are batch files that run through `cmd.exe`, which interprets `" % ! ^ & | < >` even inside quotes; Elevate refuses to put an argument containing one of them on a command line. The directory the repository lives in is handed to the process as its working directory and project files are named relative to it, so a path such as `C:\R&D\shop` works. Names *inside* the repository that end up on a command line (for example a module directory passed to `-pl`) must still avoid these characters; the error message names the argument and how to fix it.
+
+---
+
 ## 🏗️ Domain-Driven Clean Architecture
 
 Elevate follows **Domain-Driven Design (DDD)** and **Hexagonal Architecture (Ports & Adapters)**. The UI and hooks never depend directly on a package manager:
@@ -58,32 +137,50 @@ Elevate follows **Domain-Driven Design (DDD)** and **Hexagonal Architecture (Por
 ```text
 src/
 ├── domain/                      # 🧠 DOMAIN CORE (Pure domain logic, zero I/O)
-│   ├── models.ts                #   Entities & Value Objects (ProjectModule, UpdateCandidate, etc.)
+│   ├── models.ts                #   Entities & Value Objects (ProjectModule, UpdateCandidate, DependencyOrigin, …)
+│   ├── origin.ts                #   Origin classification (workspace / private / public)
+│   ├── versions.ts              #   Pre-release detection & version helpers
 │   ├── ports.ts                 #   Domain Ports (ModuleDiscoveryPort, RegistryPort, etc.)
 │   ├── ecosystem-strategy.ts    #   Strategy Pattern: Platform-agnostic interface
 │   └── ecosystem-factory.ts     #   Factory Pattern: Resolves npm or Maven strategy
 │
 ├── adapters/                    # 🔌 ADAPTERS (Concrete port implementations)
+│   ├── shared/                  #   🧰 XML (position-aware), processes, snapshots, pooling
+│   │
 │   ├── npm/                     #   📦 Node / npm Adapters
-│   │   ├── npm-discovery.ts     #     Reads workspaces from root package.json
-│   │   ├── npm-registry.ts      #     npm registry queries & dist-tags
-│   │   ├── npm-scanner.ts       #     Parses dependencies & SemVer diffs
+│   │   ├── npm-config.ts        #     Effective npm config (registries per scope)
+│   │   ├── npm-discovery.ts     #     Workspaces via @npmcli/map-workspaces
+│   │   ├── npm-registry.ts      #     npm view queries & dist-tags
+│   │   ├── npm-scanner.ts       #     Origins, alignment, SemVer diffs
+│   │   ├── npm-lockfile.ts      #     Workspace link check in package-lock.json
+│   │   ├── npm-package-manager.ts #   Package manager detection & guard
 │   │   ├── npm-updater.ts       #     Updates package.json & runs npm install
-│   │   ├── npm-verifier.ts      #     Workspace check & test verification
+│   │   ├── npm-verifier.ts      #     npm ls / custom verification
 │   │   └── npm-strategy.ts      #     NpmEcosystemStrategy
 │   │
 │   └── maven/                   #   ☕ Java / Maven Adapters
-│       ├── maven-discovery.ts   #     Finds all pom.xml files in the repo tree
-│       ├── maven-registry.ts    #     Maven Central metadata & release filters
-│       ├── maven-scanner.ts     #     Parses dependencies, deduplication & properties
-│       ├── maven-updater.ts     #     Updates pom.xml & runs mvn dependency:resolve
-│       ├── maven-verifier.ts    #     mvn test-compile code verification
+│       ├── maven-command.ts     #     Maven Wrapper / mvn invocation
+│       ├── maven-pom.ts         #     Raw POM model with editable element ranges
+│       ├── maven-project.ts     #     All POMs of the repo, parent chains, reactors
+│       ├── maven-discovery.ts   #     Modules incl. root POM, versions, aggregator
+│       ├── maven-resolution.ts  #     Effective POM & versions-maven-plugin report
+│       ├── maven-locator.ts     #     Finds where a version is declared
+│       ├── maven-scanner.ts     #     Origins, alignment, update candidates
+│       ├── maven-registry.ts    #     `elevate versions` via Maven (any Nexus/Artifactory)
+│       ├── maven-updater.ts     #     Formatting-preserving POM edits
+│       ├── maven-verifier.ts    #     mvn test-compile -pl … -amd
 │       └── maven-strategy.ts    #     MavenEcosystemStrategy
+│
+├── application/                 # 🧭 USE CASES shared by TUI, CLI and MCP
+│   ├── scan.ts                  #     Scan context, module lookup, JSON output
+│   ├── update-selection.ts      #     Guardrails for requested updates
+│   ├── update-workflow.ts       #     Snapshot ➔ install ➔ integrity ➔ verify ➔ rollback
+│   └── version-lookup.ts        #     Version history without public lookups of internal names
 │
 ├── hooks/                       # 🎣 APPLICATION HOOKS (Consume only domain ports)
 │   ├── use-workspaces.ts        #     Module management via ModuleDiscoveryPort
 │   ├── use-packages.ts          #     Scanning & filtering via DependencyReaderPort
-│   └── use-updater.ts           #     Updating & verification via updater/verifier ports
+│   └── use-updater.ts           #     Runs the shared update workflow
 │
 ├── components/                  # 🎨 PRESENTATIONAL UI (Pure rendering with Ink)
 │   ├── header.tsx               #     Ecosystem [E], Channel [stable], Language [L], Author
@@ -131,7 +228,8 @@ Any command line agent or pipeline can run Elevate without starting the interact
 # Discover modules in monorepo
 node tools/updater/elevate/index.mjs modules --json
 
-# Scan dependencies across all modules (exit code 1 if updates found)
+# Scan dependencies across all modules
+# (exit code 0 = up to date, 1 = updates available, 3 = a module could not be scanned)
 node tools/updater/elevate/index.mjs scan --channel=stable --all-modules --json
 
 # Query complete version history for a package
@@ -142,7 +240,12 @@ node tools/updater/elevate/index.mjs update --module=apps/e2e-cockpit --packages
 
 # Apply major updates (explicit permission required)
 node tools/updater/elevate/index.mjs update --module=apps/e2e-cockpit --packages=pinia@4.0.3 --allow-major --json
+
+# Keep the changes if verification fails (default: roll back)
+node tools/updater/elevate/index.mjs update --module=apps/web --all --keep-on-failure
 ```
+
+`scan --json` lists, per module, the `updates` (with `action`, `origin` and — for Maven — `declaredIn`) and the `skipped` dependencies with their `reason`. `update` exits with `2` when the update failed and was rolled back.
 
 ### 2. Model Context Protocol (MCP) Server
 
@@ -167,9 +270,9 @@ Register it in your agent's MCP settings (e.g., `claude_desktop_config.json` or 
 | Tool | Purpose |
 | :--- | :--- |
 | `elevate_discover_modules` | Discovers all repository modules and workspaces for npm or Maven |
-| `elevate_scan` | Scans a module (or all modules) for available dependency updates |
-| `elevate_get_versions` | Fetches complete published version history from registry |
-| `elevate_apply_updates` | Applies targeted updates with verification & major guardrails |
+| `elevate_scan` | Scans a module (or all modules) for updates and internal dependencies to align; lists skipped dependencies with reasons |
+| `elevate_get_versions` | Fetches complete published version history from registry (refuses public lookups of internal packages) |
+| `elevate_apply_updates` | Applies targeted updates with verification, major guardrails and rollback (`keepOnFailure` optional) |
 | `elevate_verify` | Runs module-specific build and test verification checks |
 
 ---
@@ -201,7 +304,8 @@ You can place an optional `elevate.config.json` file in your repository root:
   "author": "Dennis Répa",
   "channel": "stable",
   "locale": "en",
-  "excludeScopes": ["@my-org", "com.mycompany"],
+  "internalScopes": ["@my-org", "com.mycompany"],
+  "mavenPlugins": { "help": "3.5.2", "versions": "2.22.0" },
   "postUpdateScript": "npm test",
   "postUpdateLabel": "Run test suite"
 }
@@ -210,8 +314,9 @@ You can place an optional `elevate.config.json` file in your repository root:
 * **`author`:** Optional name displayed in the top-right header.
 * **`channel`:** `"stable"` (default, excludes betas/RCs) or `"all"` (includes pre-releases).
 * **`locale`:** `"en"` (English), `"de"` (German), or `"auto"` (system detection).
-* **`excludeScopes`:** List of internal package prefixes protected from external registry lookups.
-* **`postUpdateScript`:** Optional script executed after an npm update.
+* **`internalScopes`:** Internal npm scopes and Maven groupId prefixes. `@my-org` matches `@my-org/*`; `com.mycompany` matches `com.mycompany` and `com.mycompany.*` (not `com.mycompanyx`). Matching packages are looked up only in private registries. *Formerly `excludeScopes`, which is still read and reported as deprecated.*
+* **`mavenPlugins`:** Optional versions of the Maven plugins Elevate runs: `help` (`maven-help-plugin`, default `3.5.2`) and `versions` (`versions-maven-plugin`, default `2.22.0`). Use it when your repository manager does not offer the defaults. Invalid values fall back to the default with a warning.
+* **`postUpdateScript`:** Optional command that replaces the default verification (`npm ls` / `mvn test-compile`). Runs in the repository root (npm) or the module directory (Maven).
 
 ---
 

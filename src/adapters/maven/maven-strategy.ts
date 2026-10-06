@@ -1,3 +1,7 @@
+/**
+ * Elevate — Maven ecosystem strategy: wires the Maven adapters together.
+ */
+
 import type { EcosystemStrategy, TabLabels } from '../../domain/ecosystem-strategy.js';
 import type { Ecosystem } from '../../domain/models.js';
 import { MavenModuleDiscoveryAdapter } from './maven-discovery.js';
@@ -5,6 +9,8 @@ import { MavenRegistryAdapter } from './maven-registry.js';
 import { MavenDependencyAdapter } from './maven-scanner.js';
 import { MavenUpdaterAdapter } from './maven-updater.js';
 import { MavenVerificationAdapter } from './maven-verifier.js';
+import { DEFAULT_MAVEN_PLUGINS } from './maven-resolution.js';
+import type { MavenPluginVersions } from './maven-resolution.js';
 
 export class MavenEcosystemStrategy implements EcosystemStrategy {
   readonly ecosystem: Ecosystem = 'maven';
@@ -13,10 +19,16 @@ export class MavenEcosystemStrategy implements EcosystemStrategy {
   readonly manifestFile = 'pom.xml';
 
   readonly discovery = new MavenModuleDiscoveryAdapter();
-  readonly registry = new MavenRegistryAdapter();
-  readonly reader = new MavenDependencyAdapter(this.registry);
+  readonly registry: MavenRegistryAdapter;
+  readonly reader: MavenDependencyAdapter;
   readonly updater = new MavenUpdaterAdapter();
   readonly verifier = new MavenVerificationAdapter();
+
+  /** @param plugins versions of the Maven plugins Elevate runs (default: the pinned ones) */
+  constructor(plugins: MavenPluginVersions = DEFAULT_MAVEN_PLUGINS) {
+    this.registry = new MavenRegistryAdapter(plugins);
+    this.reader = new MavenDependencyAdapter(plugins);
+  }
 
   getTabLabels(
     counts: { total: number; prodCount: number; devCount: number },

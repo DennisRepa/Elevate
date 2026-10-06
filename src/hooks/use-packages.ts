@@ -1,11 +1,13 @@
 /**
- * 🪶 Elevate — usePackages Hook (Domain-Driven)
+ * 🪶 Elevate — usePackages hook
  *
- * Scannt Abhängigkeiten eines Moduls über den DependencyReaderPort
- * der aktuellen Ökosystem-Strategie und verwaltet Auswahl, Filterung und Tabs.
+ * Scans a module through the DependencyReaderPort of the active ecosystem
+ * strategy and manages selection, filtering and tabs. Dependencies the scan
+ * could not offer and scan errors are kept for display, so an empty list is
+ * never mistaken for "everything is up to date".
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import semver from 'semver';
 import type {
   UpdateCandidate,
@@ -13,57 +15,65 @@ import type {
   SelectionCounts,
   ProjectModule,
   ReleaseChannel,
+  SkippedDependency,
   VersionDiff,
 } from '../domain/models.js';
 import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
-import { isPreReleaseVersion, extractPreReleaseTag } from '../adapters/maven/maven-registry.js';
+import type { ElevateConfig } from '../config.js';
+import { cleanJavaVersion, diffVersions, extractPreReleaseTag, isPreReleaseVersion, rangePrefix } from '../domain/versions.js';
+import { createScanContext, scanModule } from '../application/scan.js';
 
 export function usePackages(
   strategy: EcosystemStrategy,
   module: ProjectModule,
-  internalIds: Set<string>,
-  excludeScopes: string[] = [],
+  modules: readonly ProjectModule[],
+  config: Pick<ElevateConfig, 'rootDir' | 'internalScopes'>,
   channel: ReleaseChannel = 'stable',
 ) {
   const [candidates, setCandidates] = useState<UpdateCandidate[]>([]);
+  const [skipped, setSkipped] = useState<SkippedDependency[]>([]);
+  const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('all');
   const [cursor, setCursor] = useState(0);
+  // Only the latest scan may publish results; earlier ones may finish later.
+  const scanGeneration = useRef(0);
 
-  // Scan beim Modul- oder Strategiewechsel
   const scan = useCallback(async () => {
+    const generation = ++scanGeneration.current;
     if (!module || module.id === 'empty') {
       setCandidates([]);
+      setSkipped([]);
       return;
     }
     setLoading(true);
     setCursor(0);
     setCandidates([]);
+    setSkipped([]);
+    setError(undefined);
 
-    try {
-      const updates = await strategy.reader.scan(module, excludeScopes, internalIds, channel);
-      setCandidates(updates);
-    } catch {
-      setCandidates([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [strategy, module.path, module.id, internalIds, excludeScopes, channel]);
+    const context = createScanContext(modules, config, channel);
+    const result = await scanModule(strategy, module, context);
+    if (generation !== scanGeneration.current) return;
+    setCandidates(result.candidates);
+    setSkipped(result.skipped);
+    setError(result.error);
+    setLoading(false);
+  }, [strategy, module.path, module.id, modules, config.rootDir, config.internalScopes, channel]);
 
   useEffect(() => {
     if (module && module.id !== 'empty') {
       scan();
     }
-  }, [module.path, module.id, strategy.ecosystem, channel]);
+  }, [module.path, module.id, strategy.ecosystem, channel, modules]);
 
-  // Sichtbare Pakete je nach Tab
+  // Visible packages for the active tab.
   const visible = useMemo(() => {
     if (activeTab === 'prod') return candidates.filter((c) => c.scope === 'prod');
     if (activeTab === 'dev') return candidates.filter((c) => c.scope !== 'prod');
     return candidates;
   }, [candidates, activeTab]);
 
-  // Zählerstände
   const counts: SelectionCounts = useMemo(() => {
     const selected = candidates.filter((c) => c.selected);
     return {
@@ -77,57 +87,41 @@ export function usePackages(
     };
   }, [candidates]);
 
-  // Einzelnes Paket togglen
   const togglePackage = useCallback((identifier: string) => {
     setCandidates((prev) =>
-      prev.map((c) =>
-        c.coordinate.identifier === identifier ? { ...c, selected: !c.selected } : c,
-      ),
+      prev.map((c) => (c.coordinate.identifier === identifier ? { ...c, selected: !c.selected } : c)),
     );
   }, []);
 
-  // Alle sichtbaren togglen
   const toggleAllVisible = useCallback(() => {
     const allSelected = visible.every((c) => c.selected);
     const visibleIds = new Set(visible.map((c) => c.coordinate.identifier));
     setCandidates((prev) =>
-      prev.map((c) =>
-        visibleIds.has(c.coordinate.identifier) ? { ...c, selected: !allSelected } : c,
-      ),
+      prev.map((c) => (visibleIds.has(c.coordinate.identifier) ? { ...c, selected: !allSelected } : c)),
     );
   }, [visible]);
 
-  // Benutzerdefinierte Version für eine Abhängigkeit setzen
+  // Sets a manually picked target version for a dependency.
   const setCustomVersion = useCallback((identifier: string, chosenVersion: string) => {
     setCandidates((prev) =>
       prev.map((c) => {
         if (c.coordinate.identifier !== identifier) return c;
 
-        const prefix = c.currentRange.startsWith('~')
-          ? '~'
-          : c.currentRange.startsWith('^')
-            ? '^'
-            : '';
-
+        const target = c.coordinate.ecosystem === 'maven' ? cleanJavaVersion(chosenVersion) : semver.valid(chosenVersion);
         let diff: VersionDiff = 'minor';
-        const cleanChosen = semver.valid(chosenVersion);
-        if (c.currentClean && cleanChosen) {
-          const semDiff = semver.diff(c.currentClean, chosenVersion);
-          if (semDiff === 'major' || semDiff === 'minor' || semDiff === 'patch') {
-            diff = semDiff;
-          }
+        if (c.currentClean && target && semver.valid(c.currentClean)) {
+          diff = semver.eq(c.currentClean, target) ? 'patch' : diffVersions(c.currentClean, target);
         }
 
         const isPre = isPreReleaseVersion(chosenVersion);
-        const preTag = isPre ? extractPreReleaseTag(chosenVersion) : undefined;
-
         return {
           ...c,
-          newRange: `${prefix}${chosenVersion}`,
+          newRange: c.coordinate.ecosystem === 'npm' ? `${rangePrefix(c.currentRange)}${chosenVersion}` : chosenVersion,
+          latest: chosenVersion,
           diff,
           selected: true,
           isPreRelease: isPre,
-          preReleaseTag: preTag,
+          preReleaseTag: isPre ? extractPreReleaseTag(chosenVersion) : undefined,
           isCustomVersion: true,
         };
       }),
@@ -146,6 +140,8 @@ export function usePackages(
 
   return {
     packages: candidates,
+    skipped,
+    error,
     loading,
     visible,
     counts,

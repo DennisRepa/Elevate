@@ -1,6 +1,8 @@
 /**
- * 🪶 Elevate — i18n Typ-Definitionen
+ * 🪶 Elevate — i18n type definitions
  */
+
+import type { SkipReason } from '../domain/models.js';
 
 export type Locale = 'de' | 'en';
 
@@ -26,6 +28,11 @@ export interface Translations {
     allUpToDate: string;
     moreAbove: string;
     moreBelow: (remaining: number) => string;
+    /** Shown instead of the list when the scan failed. */
+    scanFailed: (message: string) => string;
+    /** Heading for dependencies the scan could not offer. */
+    skippedHeading: (count: number) => string;
+    skipReason: (reason: SkipReason) => string;
   };
   badges: {
     patch: string;
@@ -33,12 +40,16 @@ export interface Translations {
     major: string;
     dev: string;
     prod: string;
+    /** Workspace dependency aligned to the module's local version. */
+    align: string;
+    /** Internal package from a private registry. */
+    internal: string;
   };
   status: {
     selectedOf: (selected: number, total: number) => string;
     breakdown: (patch: number, minor: number, major: number) => string;
-    symlinksProtected: (scopes: string[]) => string;
-    defaultProtected: string;
+    internalScopes: (scopes: string[]) => string;
+    noInternalScopes: string;
   };
   controls: {
     navigate: string;
@@ -79,6 +90,9 @@ export interface Translations {
     funding: (msg: string) => string;
     postScript: (label: string) => string;
     backHint: string;
+    rolledBackTitle: string;
+    rolledBack: string;
+    changedFiles: (files: string[]) => string;
   };
   mascot: {
     name: string;

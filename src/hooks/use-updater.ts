@@ -1,14 +1,14 @@
 /**
- * 🪶 Elevate — useUpdater Hook (Domain-Driven)
+ * 🪶 Elevate — useUpdater hook
  *
- * Führt den Update-Workflow über DependencyUpdaterPort und
- * VerificationPort der aktuellen Ökosystem-Strategie aus.
+ * Runs the shared update workflow (write, install, integrity check,
+ * verification, rollback on failure) and exposes progress and result.
  */
 
 import { useState, useCallback } from 'react';
 import type { UpdateCandidate, UpdateSummary, View, ProjectModule } from '../domain/models.js';
 import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
-import type { Translations } from '../i18n/types.js';
+import { runUpdateWorkflow } from '../application/update-workflow.js';
 
 export interface PostUpdateOptions {
   script?: string;
@@ -25,35 +25,28 @@ export function useUpdater(
   const [summary, setSummary] = useState<UpdateSummary | null>(null);
 
   const run = useCallback(
-    async (module: ProjectModule, selected: UpdateCandidate[], _t: Translations) => {
+    async (module: ProjectModule, selected: UpdateCandidate[]) => {
       if (selected.length === 0) return;
 
       setView('updating');
-
-      // 1. & 2. & 3. Update & Build via Updater Adapter
-      const updaterResult = await strategy.updater.applyUpdates(
-        module,
-        rootDir,
-        selected,
-        (progressMessage) => setStep(progressMessage),
-      );
-
-      // 4. Verifikation via Verifier Adapter
-      setStep('Führe Verifikation und Konsistenzchecks durch…');
-      const verifierResult = await strategy.verifier.verify(
-        module,
-        rootDir,
-        postUpdate?.script,
-        postUpdate?.label,
-      );
-
-      setSummary({
-        ...updaterResult,
-        verificationStatus: verifierResult.status,
-        verificationDetails: verifierResult.details,
-        verificationLabel: verifierResult.label,
-      });
-
+      let result: UpdateSummary;
+      try {
+        result = await runUpdateWorkflow(strategy, module, rootDir, selected, {
+          postUpdateScript: postUpdate?.script,
+          postUpdateLabel: postUpdate?.label,
+          onProgress: setStep,
+        });
+      } catch (err) {
+        // Only reachable before any file was written (e.g. a snapshot read error).
+        result = {
+          updatedCount: 0,
+          auditMessage: 'Update did not start.',
+          auditSeverity: 'warn',
+          rolledBack: true,
+          failure: err instanceof Error ? err.message : String(err),
+        };
+      }
+      setSummary(result);
       setView('summary');
     },
     [strategy, rootDir, setView, postUpdate],

@@ -13,17 +13,17 @@ interface Props {
 }
 
 /**
- * 🐣 Süßes animiertes Hühnchen ("Pip")
+ * 🐣 Animated chick mascot ("Pip")
  *
- * Inspiriert vom kleinen animierten Begleiter in Claude Code CLI.
- * Polyglot: Blinzelt, wechselt Mimik und zwitschert passend zum
- * aktuellen Zustand und zum gewählten Ökosystem (Node vs. Java).
+ * Inspired by the small animated companion in the Claude Code CLI.
+ * Blinks, changes expression and chirps according to the current
+ * state and the selected ecosystem (Node vs. Java).
  */
 export const ChickenMascot: React.FC<Props> = ({ state = 'idle', t, ecosystem = 'npm' }) => {
   const [frame, setFrame] = useState(0);
   const [chirpIndex, setChirpIndex] = useState(0);
 
-  // Animations-Timer (alle 1,4 Sekunden ein neuer Frame)
+  // Animation timer (a new frame every 1.4 seconds)
   useEffect(() => {
     const timer = setInterval(() => {
       setFrame((prev) => (prev + 1) % 6);
@@ -32,7 +32,7 @@ export const ChickenMascot: React.FC<Props> = ({ state = 'idle', t, ecosystem = 
     return () => clearInterval(timer);
   }, []);
 
-  // Sprechblasen-Timer (wechselt alle 4,2 Sekunden den Text)
+  // Speech bubble timer (new text every 4.2 seconds)
   useEffect(() => {
     const chirpTimer = setInterval(() => {
       setChirpIndex((prev) => prev + 1);
@@ -41,7 +41,7 @@ export const ChickenMascot: React.FC<Props> = ({ state = 'idle', t, ecosystem = 
     return () => clearInterval(chirpTimer);
   }, []);
 
-  // Mimik je nach Zustand & Frame
+  // Expression depending on state and frame
   let chickFace = '( •ө• )';
   let wingLeft = ' ';
   let wingRight = ' ';
@@ -68,7 +68,7 @@ export const ChickenMascot: React.FC<Props> = ({ state = 'idle', t, ecosystem = 
     chickFace = successFaces[frame % successFaces.length]!;
     currentChirp = t.mascot.successChirps[chirpIndex % t.mascot.successChirps.length]!;
   } else {
-    // Idle state: dezentes Blinzeln & Wippen
+    // Idle state: subtle blinking and bobbing
     const idleFaces = [
       { face: '( •ө• )', l: ' ', r: ' ' },
       { face: '( •ө• )', l: ' ', r: ' ' },
@@ -92,22 +92,22 @@ export const ChickenMascot: React.FC<Props> = ({ state = 'idle', t, ecosystem = 
 
   return (
     <Box alignItems="center">
-      {/* Kämmchen */}
+      {/* Comb */}
       <Text color={theme.colors.mascotComb} bold>
         {wingLeft === ' ' ? ' ' : wingLeft}
       </Text>
 
-      {/* Körper & Schnabel */}
+      {/* Body and beak */}
       <Text color={theme.colors.mascotBody} bold>
         {chickFace}
       </Text>
 
-      {/* Rechter Flügel / Feder */}
+      {/* Right wing / feather */}
       <Text color={theme.colors.brandLight} bold>
         {wingRight}
       </Text>
 
-      {/* Kleine Sprechblase / Piepser */}
+      {/* Small speech bubble / chirp */}
       {currentChirp ? (
         <Box marginLeft={1}>
           <Text color={theme.colors.brandLight} italic>

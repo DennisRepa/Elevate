@@ -14,7 +14,7 @@ interface Props {
   channel: ReleaseChannel;
 }
 
-/** Kopfzeile mit Polyglot-Ecosystem-Anzeige, Release Channel, Sprache und Autor */
+/** Header with active ecosystem, release channel, language and author. */
 export const Header: React.FC<Props> = ({
   author,
   t,
@@ -30,13 +30,13 @@ export const Header: React.FC<Props> = ({
     justifyContent="space-between"
     alignItems="center"
   >
-    {/* Links: Logo, Ökosystem & Channel */}
+    {/* Left: logo, ecosystem and channel */}
     <Box alignItems="center">
       <Text bold color={theme.colors.brand}>
         {theme.icon} {t.header.title}
       </Text>
 
-      {/* Aktives Ökosystem & Channel */}
+      {/* Active ecosystem and channel */}
       <Box marginLeft={2}>
         <Text color={theme.colors.muted}>│ </Text>
         <Text color={theme.colors.brandLight} bold>
@@ -48,7 +48,7 @@ export const Header: React.FC<Props> = ({
         </Text>
       </Box>
 
-      {/* Sprache */}
+      {/* Language */}
       <Box marginLeft={2}>
         <Text color={theme.colors.muted}>│ </Text>
         <Text color={theme.colors.brandLight} bold>
@@ -58,7 +58,7 @@ export const Header: React.FC<Props> = ({
       </Box>
     </Box>
 
-    {/* Rechts: Maintainer */}
+    {/* Right: maintainer */}
     {author && (
       <Text color={theme.colors.muted}>
         {t.header.developedBy(author)}

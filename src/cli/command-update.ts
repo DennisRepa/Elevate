@@ -1,132 +1,69 @@
 /**
- * 🪶 Elevate — CLI Command: `update`
+ * Elevate — CLI command: `update`
  *
  * Applies dependency updates to a target module with safety guardrails:
- * - Major updates require `--allow-major`
- * - Dry-run simulation via `--dry-run`
- * - Automatic post-update verification via build/test
+ * - major updates require `--allow-major`
+ * - `--dry-run` simulates without touching files
+ * - after writing, the update is installed, checked for integrity and
+ *   verified; any failure rolls all changes back (`--keep-on-failure` keeps
+ *   the changes of a failed verification for investigation)
+ *
+ * Exit codes: 0 = success, 1 = invalid request, 2 = update failed / rolled back.
  */
 
-import semver from 'semver';
 import type { CliOptions } from './parser.js';
 import type { ElevateConfig } from '../config.js';
-import type { UpdateCandidate, VersionDiff } from '../domain/models.js';
+import type { UpdateCandidate } from '../domain/models.js';
 import { EcosystemFactory } from '../domain/ecosystem-factory.js';
+import { classifyOrigin } from '../domain/origin.js';
+import { createScanContext, findModule, scanModule } from '../application/scan.js';
+import { UpdateSelectionError, selectAll, selectRequested } from '../application/update-selection.js';
+import type { UpdateRequest } from '../application/update-selection.js';
+import { runUpdateWorkflow } from '../application/update-workflow.js';
 
 export async function handleUpdateCommand(options: CliOptions, config: ElevateConfig): Promise<number> {
   const ecosystem = options.ecosystem ?? 'npm';
   const strategy = EcosystemFactory.getStrategy(ecosystem);
+  const fail = (message: string, code = 1) => {
+    if (options.json) console.log(JSON.stringify({ success: false, error: message }, null, 2));
+    else console.error(`❌ ${message}`);
+    return code;
+  };
 
   const modules = await strategy.discovery.discover(config.rootDir);
-  if (modules.length === 0) {
-    console.error(`❌ No ${strategy.displayName} modules found.`);
-    return 1;
+  if (modules.length === 0) return fail(`No ${strategy.displayName} modules found.`);
+
+  const targetModule = options.module ? findModule(modules, options.module) : modules[0];
+  if (!targetModule) return fail(`Module '${options.module}' not found.`);
+
+  if (!options.all && !(options.packages && options.packages.length > 0)) {
+    return fail('Please specify packages to update via --packages="pkg1,pkg2@1.2.3" or --all.');
   }
 
-  // Resolve target module
-  let targetModule = modules[0]!;
-  if (options.module) {
-    const match = modules.find(
-      (m) =>
-        m.id.toLowerCase() === options.module!.toLowerCase() ||
-        m.relPath.toLowerCase() === options.module!.toLowerCase() ||
-        m.path.toLowerCase().endsWith(options.module!.toLowerCase()),
-    );
-    if (!match) {
-      console.error(`❌ Module '${options.module}' not found.`);
-      return 1;
-    }
-    targetModule = match;
-  }
+  const context = createScanContext(modules, config, options.channel ?? config.channel ?? 'stable');
+  const scan = await scanModule(strategy, targetModule, context);
+  if (scan.error) return fail(`Scan failed: ${scan.error}`, 2);
 
-  // Internal module IDs
-  const internalIds = new Set<string>();
-  for (const m of modules) {
-    if (m.id) internalIds.add(m.id);
-    if (m.name) internalIds.add(m.name);
-  }
-
-  // Scan current candidates
-  const availableUpdates = await strategy.reader.scan(
-    targetModule,
-    config.excludeScopes,
-    internalIds,
-    options.channel ?? 'stable',
-  );
-
-  const updatesToApply: UpdateCandidate[] = [];
-
+  let updatesToApply: UpdateCandidate[];
   if (options.all) {
-    for (const c of availableUpdates) {
-      if (c.diff === 'major' && !options.allowMajor) {
-        if (!options.json) {
-          console.warn(`⚠️  Skipping major update for '${c.coordinate.identifier}' (requires --allow-major)`);
-        }
-        continue;
-      }
-      updatesToApply.push(c);
-    }
-  } else if (options.packages && options.packages.length > 0) {
-    for (const item of options.packages) {
-      let [name, targetVer] = item.split('@');
-      if (item.startsWith('@') && item.includes('@', 1)) {
-        // e.g. @my-org/package@1.2.3
-        const atIdx = item.lastIndexOf('@');
-        name = item.slice(0, atIdx);
-        targetVer = item.slice(atIdx + 1);
-      }
-
-      const found = availableUpdates.find((u) => u.coordinate.identifier === name);
-      if (found) {
-        if (targetVer) {
-          const prefix = found.currentRange.startsWith('~') ? '~' : found.currentRange.startsWith('^') ? '^' : '';
-          const diff: VersionDiff = semver.valid(targetVer) && found.currentClean
-            ? (semver.diff(found.currentClean, targetVer) as VersionDiff) || 'minor'
-            : 'minor';
-
-          if (diff === 'major' && !options.allowMajor) {
-            console.error(`❌ Error: '${name}' requires a major version upgrade to ${targetVer}. Please pass --allow-major.`);
-            return 1;
-          }
-
-          updatesToApply.push({
-            ...found,
-            newRange: `${prefix}${targetVer}`,
-            diff,
-            selected: true,
-          });
-        } else {
-          if (found.diff === 'major' && !options.allowMajor) {
-            console.error(`❌ Error: '${name}' is a major update (${found.currentClean} ➔ ${found.latest}). Please pass --allow-major.`);
-            return 1;
-          }
-          updatesToApply.push({ ...found, selected: true });
-        }
-      } else {
-        // Manual override for specific package
-        if (!targetVer) {
-          console.error(`❌ Package '${name}' has no pending updates detected. Please specify a target version (e.g. ${name}@1.2.3).`);
-          return 1;
-        }
-        updatesToApply.push({
-          coordinate: {
-            identifier: name!,
-            artifact: name!,
-            ecosystem,
-          },
-          currentRange: 'unknown',
-          currentClean: '0.0.0',
-          latest: targetVer,
-          newRange: targetVer,
-          diff: 'minor',
-          scope: 'prod',
-          selected: true,
-        });
+    const { selected, skippedMajors } = selectAll(scan, Boolean(options.allowMajor));
+    if (!options.json) {
+      for (const c of skippedMajors) {
+        console.warn(`⚠️  Skipping major update for '${c.coordinate.identifier}' (requires --allow-major)`);
       }
     }
+    updatesToApply = selected;
   } else {
-    console.error('❌ Please specify packages to update via --packages="pkg1,pkg2" or --all.');
-    return 1;
+    try {
+      updatesToApply = selectRequested(scan, (options.packages ?? []).map(parsePackageArgument), {
+        ecosystem,
+        allowMajor: Boolean(options.allowMajor),
+        originOf: (identifier) => classifyOrigin(identifier, ecosystem, context).kind,
+      });
+    } catch (err) {
+      if (err instanceof UpdateSelectionError) return fail(err.message);
+      throw err;
+    }
   }
 
   if (updatesToApply.length === 0) {
@@ -138,88 +75,104 @@ export async function handleUpdateCommand(options: CliOptions, config: ElevateCo
     return 0;
   }
 
-  // DRY-RUN Simulation
   if (options.dryRun) {
-    const simulationResult = {
+    const simulation = {
       dryRun: true,
       targetModule: targetModule.relPath,
       ecosystem,
       updatesCount: updatesToApply.length,
       updates: updatesToApply.map((u) => ({
         identifier: u.coordinate.identifier,
+        action: u.action,
         currentRange: u.currentRange,
         newRange: u.newRange,
         diff: u.diff,
+        declaredIn: u.declaration?.displayPath,
       })),
     };
 
     if (options.json) {
-      console.log(JSON.stringify(simulationResult, null, 2));
+      console.log(JSON.stringify(simulation, null, 2));
     } else {
       console.log(`\n🪶 [DRY-RUN] Planned updates for ${targetModule.name} (${updatesToApply.length}):\n`);
       for (const u of updatesToApply) {
-        console.log(`  • ${u.coordinate.identifier.padEnd(36)} ${u.currentRange} ➔ ${u.newRange} (${u.diff.toUpperCase()})`);
+        const where = u.declaration ? `  [${u.declaration.displayPath}]` : '';
+        console.log(
+          `  • ${u.coordinate.identifier.padEnd(36)} ${u.currentRange} ➔ ${u.newRange} (${u.diff.toUpperCase()})${where}`,
+        );
       }
       console.log('\n(No files were modified because --dry-run is active).\n');
     }
     return 0;
   }
 
-  // EXECUTE ACTUAL UPDATE
-  if (!options.json) {
-    console.log(`\n⚡ Applying ${updatesToApply.length} update(s) to ${targetModule.name}…`);
-  }
+  if (!options.json) console.log(`\n⚡ Applying ${updatesToApply.length} update(s) to ${targetModule.name}…`);
 
-  const updateResult = await strategy.updater.applyUpdates(
-    targetModule,
-    config.rootDir,
-    updatesToApply,
-    (step) => {
+  const summary = await runUpdateWorkflow(strategy, targetModule, config.rootDir, updatesToApply, {
+    postUpdateScript: config.postUpdateScript,
+    postUpdateLabel: config.postUpdateLabel,
+    skipVerification: options.skipVerify,
+    keepOnFailure: options.keepOnFailure,
+    onProgress: (step) => {
       if (!options.json) console.log(`   ${step}`);
     },
-  );
+  });
 
-  // AUTOMATIC VERIFICATION (BUILD / TEST)
-  let verifyResult: { status: 'clean' | 'warn'; details: string; label: string } | undefined;
-  if (!options.skipVerify) {
-    if (!options.json) console.log(`🔍 Running build & test verification…`);
-    verifyResult = await strategy.verifier.verify(
-      targetModule,
-      config.rootDir,
-      config.postUpdateScript,
-      config.postUpdateLabel,
-    );
-  }
-
-  const finalSummary = {
-    success: verifyResult?.status !== 'warn',
-    module: targetModule.relPath,
-    ecosystem,
-    ...updateResult,
-    verification: verifyResult
-      ? {
-          status: verifyResult.status,
-          label: verifyResult.label,
-          details: verifyResult.details,
-        }
-      : undefined,
-  };
+  const success = !summary.rolledBack && summary.verificationStatus !== 'warn';
 
   if (options.json) {
-    console.log(JSON.stringify(finalSummary, null, 2));
-    return finalSummary.success ? 0 : 2;
+    console.log(
+      JSON.stringify(
+        {
+          success,
+          module: targetModule.relPath,
+          ecosystem,
+          updatedCount: summary.updatedCount,
+          auditMessage: summary.auditMessage,
+          auditSeverity: summary.auditSeverity,
+          fundingMessage: summary.fundingMessage,
+          rolledBack: summary.rolledBack ?? false,
+          failure: summary.failure,
+          changedFiles: summary.changedFiles,
+          verification: summary.verificationStatus
+            ? {
+                status: summary.verificationStatus,
+                label: summary.verificationLabel,
+                details: summary.verificationDetails,
+              }
+            : undefined,
+        },
+        null,
+        2,
+      ),
+    );
+    return success ? 0 : 2;
   }
 
-  console.log(`\n✨ Update completed successfully!\n`);
-  console.log(`  • Updated: ${updateResult.updatedCount} package(s)`);
-  console.log(`  • Audit Status: ${updateResult.auditSeverity.toUpperCase()} — ${updateResult.auditMessage}`);
-  if (verifyResult) {
-    console.log(`  • Verification: ${verifyResult.status.toUpperCase()} (${verifyResult.label})`);
-    if (verifyResult.status === 'warn') {
-      console.warn(`    Details: ${verifyResult.details}`);
-    }
+  if (summary.rolledBack) {
+    console.error(`\n❌ Update failed and was rolled back.\n`);
+    console.error(`  ${summary.failure?.replace(/\n/g, '\n  ')}`);
+    if (summary.verificationDetails) console.error(`\n  Details:\n  ${summary.verificationDetails.replace(/\n/g, '\n  ')}`);
+    console.error('');
+    return 2;
+  }
+
+  console.log(success ? `\n✨ Update completed successfully!\n` : `\n⚠️  Update applied, but verification failed.\n`);
+  console.log(`  • Updated: ${summary.updatedCount} package(s)`);
+  if (summary.changedFiles?.length) console.log(`  • Changed files: ${summary.changedFiles.join(', ')}`);
+  console.log(`  • Status: ${summary.auditSeverity.toUpperCase()} — ${summary.auditMessage}`);
+  if (summary.verificationStatus) {
+    console.log(`  • Verification: ${summary.verificationStatus.toUpperCase()} (${summary.verificationLabel})`);
+    if (summary.verificationStatus === 'warn') console.warn(`    Details: ${summary.verificationDetails}`);
   }
   console.log('');
 
-  return finalSummary.success ? 0 : 2;
+  return success ? 0 : 2;
+}
+
+/** Parses `name`, `name@1.2.3`, `@scope/name@1.2.3` or `group:artifact@1.2.3`. */
+export function parsePackageArgument(item: string): UpdateRequest {
+  const at = item.lastIndexOf('@');
+  if (at > 0) return { identifier: item.slice(0, at), targetVersion: item.slice(at + 1) || undefined };
+  return { identifier: item };
 }

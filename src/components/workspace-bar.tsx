@@ -7,17 +7,15 @@ import type { Translations } from '../i18n/types.js';
 
 interface Props {
   module: ProjectModule;
-  excludeScopes: string[];
+  internalScopes: string[];
   strategy: EcosystemStrategy;
   t: Translations;
 }
 
-/** Zeigt das aktuell aktive Modul und den Schutzhinweis statisch an */
-export const WorkspaceBar: React.FC<Props> = ({ module, excludeScopes, strategy, t }) => {
+/** Shows the active module and the configured internal scopes. */
+export const WorkspaceBar: React.FC<Props> = ({ module, internalScopes, strategy, t }) => {
   const scopeHint =
-    excludeScopes.length > 0
-      ? t.status.symlinksProtected(excludeScopes)
-      : t.status.defaultProtected;
+    internalScopes.length > 0 ? t.status.internalScopes(internalScopes) : t.status.noInternalScopes;
 
   return (
     <Box marginY={1} justifyContent="space-between" alignItems="center">

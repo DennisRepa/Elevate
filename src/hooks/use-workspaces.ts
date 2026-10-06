@@ -1,11 +1,11 @@
 /**
- * 🪶 Elevate — useWorkspaces Hook (Domain-Driven)
+ * 🪶 Elevate — useWorkspaces hook
  *
- * Verwaltet Module des aktuell aktiven Ökosystems über die
- * ModuleDiscoveryPort-Schnittstelle.
+ * Loads the modules of the active ecosystem through its ModuleDiscoveryPort
+ * and tracks which module is selected.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { ProjectModule } from '../domain/models.js';
 import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
 
@@ -14,15 +14,13 @@ export function useWorkspaces(strategy: EcosystemStrategy, rootDir: string) {
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Module anhand der aktuellen Ökosystem-Strategie laden
+  // Reload modules whenever the ecosystem strategy changes.
   const reload = useCallback(async () => {
     setLoading(true);
     setModules([]);
     setActiveIndex(0);
     try {
-      const found = await strategy.discovery.discover(rootDir);
-      setModules(found);
-      setActiveIndex(0);
+      setModules(await strategy.discovery.discover(rootDir));
     } catch {
       setModules([]);
     } finally {
@@ -34,19 +32,9 @@ export function useWorkspaces(strategy: EcosystemStrategy, rootDir: string) {
     reload();
   }, [reload]);
 
-  // Interne IDs sammeln (für Symlink-/Monorepo-Schutz)
-  const internalIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const m of modules) {
-      if (m.id) ids.add(m.id);
-      if (m.name) ids.add(m.name);
-    }
-    return ids;
-  }, [modules]);
-
   const active: ProjectModule = modules[activeIndex] || {
     id: 'empty',
-    name: 'Kein Modul gefunden',
+    name: 'No module found',
     path: rootDir,
     relPath: 'Root',
     ecosystem: strategy.ecosystem,
@@ -58,7 +46,6 @@ export function useWorkspaces(strategy: EcosystemStrategy, rootDir: string) {
     active,
     activeIndex,
     setActiveIndex,
-    internalIds,
     loading,
     reload,
   } as const;

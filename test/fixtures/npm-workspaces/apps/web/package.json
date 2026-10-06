@@ -1,0 +1,10 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "dependencies": {
+    "@acme/core": "^1.0.0",
+    "@acme/utils": "*",
+    "@acme/secret-sdk": "^1.0.0",
+    "semver": "^7.0.0"
+  }
+}

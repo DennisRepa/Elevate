@@ -1,8 +1,7 @@
 /**
- * 🪶 Elevate — Version Picker Modal (Version heraussuchen)
+ * 🪶 Elevate — version picker modal
  *
- * Ermöglicht das interaktive Durchsuchen und Auswählen einer
- * beliebigen Zielversion aus der npm- bzw. Maven-Registry.
+ * Lets the user search and pick any target version for a dependency.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -11,11 +10,14 @@ import { theme } from '../theme.js';
 import type { UpdateCandidate } from '../domain/models.js';
 import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
 import type { Translations } from '../i18n/types.js';
-import { isPreReleaseVersion, extractPreReleaseTag } from '../adapters/maven/maven-registry.js';
+import { isPreReleaseVersion, extractPreReleaseTag } from '../domain/versions.js';
+import { lookupVersions } from '../application/version-lookup.js';
+import type { ElevateConfig } from '../config.js';
 
 interface Props {
   candidate: UpdateCandidate;
   strategy: EcosystemStrategy;
+  config: Pick<ElevateConfig, 'rootDir' | 'internalScopes'>;
   t: Translations;
   onSelect: (version: string) => void;
   onCancel: () => void;
@@ -26,6 +28,7 @@ const WINDOW_SIZE = 8;
 export const VersionModal: React.FC<Props> = ({
   candidate,
   strategy,
+  config,
   t,
   onSelect,
   onCancel,
@@ -35,17 +38,23 @@ export const VersionModal: React.FC<Props> = ({
   const [filterText, setFilterText] = useState('');
   const [cursor, setCursor] = useState(0);
 
-  // Alle verfügbaren Versionen aus der Registry laden
+  // Load all available versions
   useEffect(() => {
     let active = true;
     setLoading(true);
 
-    strategy.registry
-      .getAllVersions(candidate.coordinate)
+    // Versions delivered by the scan (Maven reports, workspace alignment) are
+    // used as-is; otherwise the registry is asked, with the same guard against
+    // public lookups of internal packages as everywhere else.
+    const pending = candidate.availableVersions
+      ? Promise.resolve(candidate.availableVersions)
+      : lookupVersions(strategy, candidate.coordinate, config);
+
+    pending
       .then((versions) => {
         if (!active) return;
         setAllVersions(versions);
-        // Falls die aktuelle Neueste vorhanden ist, Cursor darauf ausrichten
+        // Start at the newest version
         setCursor(0);
       })
       .catch(() => {
@@ -59,16 +68,16 @@ export const VersionModal: React.FC<Props> = ({
     return () => {
       active = false;
     };
-  }, [strategy, candidate.coordinate]);
+  }, [strategy, candidate, config]);
 
-  // Gefilterte Versionen nach Suchtext
+  // Versions matching the filter text
   const filtered = useMemo(() => {
     if (!filterText.trim()) return allVersions;
     const lower = filterText.toLowerCase();
     return allVersions.filter((v) => v.toLowerCase().includes(lower));
   }, [allVersions, filterText]);
 
-  // Tastatureingaben für Suche und Navigation
+  // Keyboard input for filtering and navigation
   useInput((input, key) => {
     if (key.escape) {
       onCancel();
@@ -108,20 +117,20 @@ export const VersionModal: React.FC<Props> = ({
       return;
     }
 
-    // Bei leerem Filter beendet 'q' das Modal
+    // With an empty filter, 'q' closes the modal
     if (input === 'q' && filterText === '') {
       onCancel();
       return;
     }
 
-    // Zeichen zur Filterung hinzufügen (Zahlen, Buchstaben, Punkte, Bindestriche)
+    // Append filter characters (digits, letters, dots, hyphens)
     if (input && !key.ctrl && !key.meta && /^[\w.\-+~]$/.test(input)) {
       setFilterText((prev) => prev + input);
       setCursor(0);
     }
   });
 
-  // Fenster-Ausschnitt für scrollbare Darstellung
+  // Visible window for scrolling
   const startIdx = Math.max(
     0,
     Math.min(
@@ -139,7 +148,7 @@ export const VersionModal: React.FC<Props> = ({
       padding={1}
       marginY={1}
     >
-      {/* 1. Header & Paketname */}
+      {/* 1. Header and package name */}
       <Box justifyContent="space-between" marginBottom={1}>
         <Text bold color={theme.colors.brandLight}>
           {theme.icon} {t.versionModal.title(candidate.coordinate.identifier)}
@@ -149,7 +158,7 @@ export const VersionModal: React.FC<Props> = ({
         </Text>
       </Box>
 
-      {/* 2. Such- und Filterfeld */}
+      {/* 2. Filter field */}
       <Box
         borderStyle="single"
         borderColor={theme.colors.border}
@@ -176,7 +185,7 @@ export const VersionModal: React.FC<Props> = ({
         ) : null}
       </Box>
 
-      {/* 3. Versions-Liste */}
+      {/* 3. Version list */}
       {loading ? (
         <Box marginY={2} justifyContent="center">
           <Text color={theme.colors.warning}>⏳ {t.versionModal.loading}</Text>
@@ -257,7 +266,7 @@ export const VersionModal: React.FC<Props> = ({
         </Box>
       )}
 
-      {/* 4. Tastaturhinweise */}
+      {/* 4. Keyboard hints */}
       <Box
         borderStyle="single"
         borderColor={theme.colors.border}

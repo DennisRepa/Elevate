@@ -1,7 +1,7 @@
 /**
  * 🪶 Elevate — i18n System
  *
- * Verwaltet Übersetzungstabellen, Spracheinstellungen und den useI18n Hook.
+ * Translation tables, language detection and the useI18n hook.
  */
 
 import { useState, useCallback, useMemo } from 'react';
@@ -13,7 +13,7 @@ export * from './types.js';
 
 const dictionaries: Record<Locale, Translations> = { de, en };
 
-/** Ermittelt die Standardsprache aus Umgebung oder Config */
+/** Determines the initial language from the configuration or the environment. */
 export function resolveInitialLocale(configured?: string): Locale {
   if (configured === 'de' || configured === 'en') return configured;
 
@@ -22,12 +22,12 @@ export function resolveInitialLocale(configured?: string): Locale {
   return 'de'; // Standard: Deutsch
 }
 
-/** Liefert das passende Wörterbuch */
+/** Returns the translation table for a locale. */
 export function getTranslations(locale: Locale): Translations {
   return dictionaries[locale] ?? dictionaries.de;
 }
 
-/** Hook zur Sprachverwaltung */
+/** Hook that manages the active language. */
 export function useI18n(initialLocale: Locale = 'de') {
   const [locale, setLocale] = useState<Locale>(initialLocale);
 

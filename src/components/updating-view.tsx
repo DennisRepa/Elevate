@@ -11,7 +11,7 @@ interface Props {
   ecosystem?: Ecosystem;
 }
 
-/** Fortschrittsanzeige während des Update-Workflows mit arbeitendem Hühnchen */
+/** Progress view during the update workflow, with the working mascot. */
 export const UpdatingView: React.FC<Props> = ({ step, t, ecosystem = 'npm' }) => (
   <Box
     flexDirection="column"

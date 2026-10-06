@@ -10,7 +10,7 @@ interface Props {
   t: Translations;
 }
 
-/** Einzelne Zeile in der Liste mit Badges und Checkbox */
+/** One row of the package list with checkbox, versions and badges. */
 export const PackageRow: React.FC<Props> = ({ item, isFocused, t }) => {
   const badge =
     item.diff === 'major' ? (
@@ -21,8 +21,9 @@ export const PackageRow: React.FC<Props> = ({ item, isFocused, t }) => {
       <Text color={theme.colors.success}>{t.badges.patch}</Text>
     );
 
-  const displayName = item.coordinate?.identifier || (item as any).name || '';
+  const displayName = item.coordinate.identifier;
   const isDevOrTest = item.scope === 'dev' || item.scope === 'test';
+  const property = item.declaration?.kind === 'property' ? `\${${item.declaration.propertyName}}` : undefined;
 
   return (
     <Box justifyContent="space-between">
@@ -43,6 +44,15 @@ export const PackageRow: React.FC<Props> = ({ item, isFocused, t }) => {
         </Text>
       </Box>
       <Box>
+        {property && <Text color={theme.colors.muted}>{property} </Text>}
+        {item.action === 'align' && (
+          <Text bold color={theme.colors.brandLight}>
+            {t.badges.align}{' '}
+          </Text>
+        )}
+        {item.origin.kind === 'private' && (
+          <Text color={theme.colors.brandLight}>{t.badges.internal} </Text>
+        )}
         {item.isCustomVersion && (
           <Text bold color={theme.colors.brandLight}>
             [{t.versionModal.customBadge}]{' '}

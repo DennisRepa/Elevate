@@ -16,6 +16,7 @@ export interface CliOptions {
   allowMajor?: boolean;
   dryRun?: boolean;
   skipVerify?: boolean;
+  keepOnFailure?: boolean;
   json?: boolean;
   positional?: string;
   help?: boolean;
@@ -61,6 +62,8 @@ export function parseCliArgs(args: string[]): CliOptions {
       result.dryRun = true;
     } else if (arg === '--skip-verify') {
       result.skipVerify = true;
+    } else if (arg === '--keep-on-failure') {
+      result.keepOnFailure = true;
     } else if (arg === '--help' || arg === '-h') {
       result.help = true;
     } else if (arg.startsWith('--ecosystem=')) {
@@ -122,6 +125,7 @@ FLAGS:
       --allow-major                    Allow breaking major version upgrades
       --dry-run                        Simulate updates without modifying any files
       --skip-verify                    Skip post-update build & test verification
+      --keep-on-failure                Keep changes when verification fails (default: roll back)
       --json                           Format output as machine-readable JSON
   -h, --help                           Display this help message
 

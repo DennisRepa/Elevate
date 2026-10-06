@@ -9,12 +9,11 @@ interface Props {
 }
 
 /**
- * 🪶 Elevate — Initialer Splash Screen
+ * 🪶 Elevate — initial splash screen
  *
- * Zeigt beim Start ein ansprechendes Intro mit Maskottchen Pip,
- * Ladebalken und Autoren-Info. Der Splash Screen ist bewusst IMMER
- * auf Englisch gehalten. Schaltet nach ~3,2 Sekunden oder per
- * Tastendruck automatisch auf das Dashboard um.
+ * Shows an intro with the mascot Pip, a progress bar and author
+ * information. The splash screen is deliberately always in English.
+ * Switches to the dashboard after ~3.2 seconds or on a key press.
  */
 export const SplashScreen: React.FC<Props> = ({ onComplete, author }) => {
   const t = en;
@@ -22,7 +21,7 @@ export const SplashScreen: React.FC<Props> = ({ onComplete, author }) => {
   const [progress, setProgress] = useState(0);
   const [frame, setFrame] = useState(0);
 
-  // Animations- und Fortschritts-Timer
+  // Animation and progress timer
   useEffect(() => {
     const progressTimer = setInterval(() => {
       setProgress((prev) => {
@@ -45,7 +44,7 @@ export const SplashScreen: React.FC<Props> = ({ onComplete, author }) => {
     };
   }, [onComplete]);
 
-  // Mascot-Animations-Frames für den Splash Screen (immer englische Chirps)
+  // Mascot animation frames for the splash screen (always English chirps)
   const mascotFrames = [
     { face: '( •ө• )', arms: '/ >🪶', chirp: '*chirp!*' },
     { face: '( ᵔөᵔ )', arms: '/ >🪶', chirp: '*hello!*' },
@@ -54,7 +53,7 @@ export const SplashScreen: React.FC<Props> = ({ onComplete, author }) => {
   ];
   const curMascot = mascotFrames[frame % mascotFrames.length]!;
 
-  // 24-Segment-Fortschrittsbalken
+  // 24-segment progress bar
   const barLength = 24;
   const filledLength = Math.round((progress / 100) * barLength);
   const emptyLength = Math.max(0, barLength - filledLength);
@@ -71,7 +70,7 @@ export const SplashScreen: React.FC<Props> = ({ onComplete, author }) => {
       paddingX={4}
       marginY={1}
     >
-      {/* 1. Titel & Icon */}
+      {/* 1. Title and icon */}
       <Box marginBottom={1}>
         <Text bold color={theme.colors.brand}>
           {theme.icon}   E  L  E  V  A  T  E
@@ -80,7 +79,7 @@ export const SplashScreen: React.FC<Props> = ({ onComplete, author }) => {
 
       <Text color={theme.colors.muted}>{t.splash.tagline}</Text>
 
-      {/* 2. Großes zentriertes Hühnchen */}
+      {/* 2. Large centred mascot */}
       <Box flexDirection="column" alignItems="center" marginY={1}>
         <Text color={theme.colors.mascotComb} bold>
           (\_/)
@@ -98,14 +97,14 @@ export const SplashScreen: React.FC<Props> = ({ onComplete, author }) => {
         </Text>
       </Box>
 
-      {/* 3. Autor-Hinweis */}
+      {/* 3. Author note */}
       {author && (
         <Box marginBottom={1}>
           <Text color={theme.colors.muted}>{t.header.developedBy(author)}</Text>
         </Box>
       )}
 
-      {/* 4. Ladebalken */}
+      {/* 4. Progress bar */}
       <Box flexDirection="column" alignItems="center" marginTop={1}>
         <Box>
           <Text color={theme.colors.brandLight} bold>
@@ -117,7 +116,7 @@ export const SplashScreen: React.FC<Props> = ({ onComplete, author }) => {
         </Box>
       </Box>
 
-      {/* 5. Skip-Hinweis */}
+      {/* 5. Skip hint */}
       <Box marginTop={1}>
         <Text color={theme.colors.muted} dimColor>
           {t.splash.skipHint}

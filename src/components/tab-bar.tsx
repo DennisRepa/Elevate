@@ -12,7 +12,7 @@ interface Props {
   t: Translations;
 }
 
-/** Tab-Leiste: Fragt die Bezeichnungen vom jeweiligen Ökosystem ab */
+/** Tab bar; the labels come from the active ecosystem. */
 export const TabBar: React.FC<Props> = ({ activeTab, counts, strategy, t }) => {
   const labels = strategy.getTabLabels(counts, t);
 

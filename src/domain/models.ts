@@ -1,73 +1,157 @@
 /**
- * 🪶 Elevate — Domain Models & Value Objects
+ * Elevate — domain models and value objects.
  *
- * Reine Domänenmodelle ohne externe Framework-Abhängigkeiten.
+ * Pure data types without framework or I/O dependencies.
  */
 
-/** Unterstützte Ökosysteme / Paketmanager */
+/** Supported ecosystems / package managers. */
 export type Ecosystem = 'npm' | 'maven';
 
-/** Bounded Context: Projektmodul / Workspace-Einheit */
+/** A module (npm workspace, Maven project) inside the repository. */
 export interface ProjectModule {
-  /** Eindeutige Kennung (z. B. Paketname oder groupId:artifactId) */
+  /** Unique identifier: the package name (npm) or `groupId:artifactId` (Maven). */
   id: string;
-  /** Anzeigename für die UI */
+  /** Display name for the UI. */
   name: string;
-  /** Absoluter Pfad zum Modul-Verzeichnis */
+  /** Absolute path of the module directory. */
   path: string;
-  /** Relativer Pfad zur Monorepo-Wurzel */
+  /** Path relative to the repository root (`Root` for the root itself). */
   relPath: string;
-  /** Zugehöriges Ökosystem */
   ecosystem: Ecosystem;
-  /** Ist dies die Monorepo-Wurzel? */
+  /** Whether this module is the repository root. */
   isRoot: boolean;
+  /**
+   * The module's own version as declared in the repository, if it can be
+   * determined statically. Used as the alignment target for internal
+   * dependencies on this module.
+   */
+  version?: string;
+  /**
+   * Maven only: directory of the aggregator POM whose reactor builds this
+   * module. Verification runs from there so dependent modules are rebuilt.
+   */
+  aggregatorDir?: string;
 }
 
-/** Value Object: Koordinate einer Abhängigkeit */
+/** Value object: the coordinates of a dependency. */
 export interface DependencyCoordinate {
-  /** Vollständiger Bezeichner (npm: Name; Maven: groupId:artifactId) */
+  /** Full identifier (npm: package name; Maven: `groupId:artifactId`). */
   identifier: string;
-  /** Optionaler Namespace / GroupId (Maven) */
+  /** Namespace / groupId (Maven only). */
   group?: string;
-  /** Artefaktname / Package Name */
+  /** Artifact or package name. */
   artifact: string;
-  /** Ökosystem */
   ecosystem: Ecosystem;
 }
 
-/** Release Channel (Stabile Releases vs. Vorabversionen) */
+/**
+ * Where a dependency comes from. Decides which version source is consulted
+ * and which registry may be contacted for it.
+ *
+ * - `workspace`: another module of this repository. Its version is defined
+ *   locally; the target is always the module's local version.
+ * - `private`: an internal package published to a private registry, identified
+ *   by the configured `internalScopes` or an explicit scoped registry mapping.
+ *   It must never be looked up on a public registry.
+ * - `public`: everything else.
+ */
+export type DependencyOrigin =
+  | { kind: 'workspace'; moduleId: string; moduleRelPath: string }
+  | { kind: 'private'; matchedBy: 'internal-scope' | 'scoped-registry'; registry?: string }
+  | { kind: 'public' };
+
+export type DependencyOriginKind = DependencyOrigin['kind'];
+
+/** Release channel: stable releases only, or including pre-releases. */
 export type ReleaseChannel = 'stable' | 'all';
 
-/** Art des Versionsunterschieds nach SemVer */
+/** Kind of version change according to SemVer. */
 export type VersionDiff = 'patch' | 'minor' | 'major';
 
-/** Entity: Update-Kandidat */
+/**
+ * The exact place in a manifest that holds a version literal. An update is
+ * written there, which may be a different file than the module's own
+ * manifest (e.g. a property in a parent POM).
+ */
+export interface VersionDeclaration {
+  /** Absolute path of the manifest that contains the literal. */
+  file: string;
+  kind: 'dependency' | 'dependency-management' | 'parent' | 'property';
+  /** Name of the property holding the version (kind `property`). */
+  propertyName?: string;
+  /** Path of `file` relative to the repository root, for display. */
+  displayPath: string;
+}
+
+/** Entity: a dependency for which a newer or aligned version is available. */
 export interface UpdateCandidate {
-  /** Koordinate der Abhängigkeit */
   coordinate: DependencyCoordinate;
-  /** Aktueller Versionsbereich im Projekt */
+  /** Version range or version as currently written in the manifest. */
   currentRange: string;
-  /** Bereinigte Versionsnummer */
+  /** Normalised current version. */
   currentClean: string;
-  /** Neueste verfügbare Version */
+  /** Target version offered by the version source. */
   latest: string;
-  /** Neuer Versionsbereich */
+  /** Range or version that will be written. */
   newRange: string;
-  /** Schweregrad der Änderung */
   diff: VersionDiff;
-  /** Art der Abhängigkeit: prod, dev (npm), test (maven) */
+  /** Dependency type: prod, dev (npm), test, plugin (Maven). */
   scope: 'prod' | 'dev' | 'test' | 'plugin';
-  /** Vom Benutzer im Dashboard ausgewählt? */
+  /** Selected for update in the dashboard. */
   selected: boolean;
-  /** Ist dies eine Vorabversion (Beta, RC, Alpha, Milestone)? */
+  /** Where the dependency comes from. */
+  origin: DependencyOrigin;
+  /**
+   * `update`: move to a newer version from a registry.
+   * `align`: move to the local version of a workspace module.
+   */
+  action: 'update' | 'align';
+  /** Where the version is written (Maven); undefined means the module manifest. */
+  declaration?: VersionDeclaration;
+  /** Other dependencies sharing the same declaration (e.g. one version property). */
+  sharedWith?: string[];
+  /**
+   * Versions a user may pick from, newest first, when the version source
+   * already provided them (Maven reports, workspace alignment). When absent,
+   * the registry is queried on demand.
+   */
+  availableVersions?: string[];
+  /** Whether the target is a pre-release (alpha, beta, RC, milestone, snapshot). */
   isPreRelease?: boolean;
-  /** Name des Vorabversions-Tags (z. B. "BETA", "RC", "ALPHA", "MILESTONE") */
+  /** Short pre-release label, e.g. "BETA", "RC", "M2". */
   preReleaseTag?: string;
-  /** Wurde eine benutzerdefinierte Version manuell ausgewählt? */
+  /** Whether the target version was picked manually. */
   isCustomVersion?: boolean;
 }
 
-/** Value Object: Zählerstände für die UI */
+/** Why a dependency could not be offered although it may be outdated. */
+export type SkipReason =
+  /** Internal package whose registry resolves to a public registry. */
+  | 'private-on-public-registry'
+  /** The registry lookup failed (network, authentication, server error). */
+  | 'lookup-failed'
+  /** The version is declared outside the repository (external parent or BOM). */
+  | 'managed-externally'
+  /** The declared version does not match the resolved one (profiles, CLI overrides). */
+  | 'declaration-mismatch'
+  /** The name is not a valid package identifier and was not passed to any tool. */
+  | 'invalid-name';
+
+/** A dependency that was deliberately not offered, with the reason. */
+export interface SkippedDependency {
+  identifier: string;
+  origin: DependencyOriginKind;
+  reason: SkipReason;
+  detail?: string;
+}
+
+/** Result of scanning one module. */
+export interface ScanResult {
+  candidates: UpdateCandidate[];
+  skipped: SkippedDependency[];
+}
+
+/** Value object: counters for the UI. */
 export interface SelectionCounts {
   total: number;
   prodCount: number;
@@ -78,25 +162,27 @@ export interface SelectionCounts {
   majorCount: number;
 }
 
-/** Value Object: Ergebnisbericht eines Update-Laufs */
+/** Value object: report of an update run. */
 export interface UpdateSummary {
-  /** Anzahl aktualisierter Abhängigkeiten */
+  /** Number of dependencies written. */
   updatedCount: number;
-  /** Sicherheitsaudit-Nachricht */
+  /** Install / resolution status message. */
   auditMessage: string;
-  /** Schweregrad des Audits */
   auditSeverity: 'clean' | 'warn';
-  /** Optionaler Funding-Hinweis */
+  /** Optional funding hint (npm). */
   fundingMessage?: string;
-  /** Ergebnis des Verifikations-Schritts */
   verificationStatus?: 'clean' | 'warn';
-  /** Details zur Verifikation */
   verificationDetails?: string;
-  /** Label des Verifikationsschritts */
   verificationLabel?: string;
+  /** Whether all changes were reverted because a step failed. */
+  rolledBack?: boolean;
+  /** Why the update failed, if it did. */
+  failure?: string;
+  /** Files that were modified (and kept). */
+  changedFiles?: string[];
 }
 
-/** Dashboard-Ansichten (Finite State Machine) */
+/** Dashboard views (finite state machine). */
 export type View =
   | 'splash'
   | 'dashboard'
@@ -105,5 +191,5 @@ export type View =
   | 'updating'
   | 'summary';
 
-/** Aktiver Tab in der Liste */
+/** Active tab in the package list. */
 export type Tab = 'all' | 'prod' | 'dev';

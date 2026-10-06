@@ -22,6 +22,16 @@ export const en: Translations = {
     allUpToDate: '🎉 All dependencies in this tab are up to date!',
     moreAbove: '▲ … more above',
     moreBelow: (remaining) => `▼ … more below (${remaining} remaining)`,
+    scanFailed: (message) => `❌ Scan failed: ${message}`,
+    skippedHeading: (count) => `⚠️ ${count} dependenc${count === 1 ? 'y' : 'ies'} not offered:`,
+    skipReason: (reason) =>
+      ({
+        'private-on-public-registry': 'internal package, but its registry is public — not looked up',
+        'lookup-failed': 'registry lookup failed',
+        'managed-externally': 'version is managed outside this repository',
+        'declaration-mismatch': 'version location is ambiguous',
+        'invalid-name': 'invalid package name',
+      })[reason],
   },
   badges: {
     patch: '[Patch]',
@@ -29,12 +39,14 @@ export const en: Translations = {
     major: '[MAJOR]',
     dev: '(dev/test)',
     prod: '(prod/compile)',
+    align: '[Align]',
+    internal: '[Internal]',
   },
   status: {
     selectedOf: (selected, total) => `${selected} of ${total}`,
     breakdown: (patch, minor, major) => `(${patch} Patch, ${minor} Minor, ${major} Major)`,
-    symlinksProtected: (scopes) => `🛡️ Internal ${scopes.map((s) => `${s}/*`).join(', ')} protected`,
-    defaultProtected: '🛡️ Internal monorepo modules protected',
+    internalScopes: (scopes) => `🏢 Internal: ${scopes.join(', ')}`,
+    noInternalScopes: '🏢 Workspace modules are aligned locally',
   },
   controls: {
     navigate: 'Navigate',
@@ -75,6 +87,9 @@ export const en: Translations = {
     funding: (msg) => `💡 Funding: ${msg}`,
     postScript: (label) => `🔍 ${label}:`,
     backHint: '[Enter] Back to Dashboard   │   [Q] Quit',
+    rolledBackTitle: '↩️ Update failed — all changes were rolled back',
+    rolledBack: 'The repository is in the same state as before the update.',
+    changedFiles: (files) => `📝 Changed: ${files.join(', ')}`,
   },
   mascot: {
     name: 'Pip',
