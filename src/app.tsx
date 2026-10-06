@@ -1,8 +1,8 @@
 /**
- * 🪶 Elevate — Hauptkomponente (App-Shell, Polyglot & Clean Architecture)
+ * 🪶 Elevate — main component (app shell)
  *
- * Orchestriert Ökosystem-Strategien (npm / Maven), Views, Hooks,
- * i18n, Theme und Keyboard-Navigation nach Domain-Driven Design Prinzipien.
+ * Orchestrates the ecosystem strategies (npm / Maven), views, hooks,
+ * i18n, theme and keyboard navigation.
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -40,7 +40,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
   const [modalIndex, setModalIndex] = useState(0);
   const [versionPickerCandidate, setVersionPickerCandidate] = useState<UpdateCandidate | null>(null);
 
-  // 1. Ökosystem-Auswahl (npm ⇄ Maven via Strategy Pattern)
+  // 1. Ecosystem selection (npm ⇄ Maven via strategy pattern)
   const [ecosystem, setEcosystem] = useState<Ecosystem>('npm');
   const strategy = useMemo(() => EcosystemFactory.getStrategy(ecosystem), [ecosystem]);
 
@@ -54,21 +54,15 @@ export const App: React.FC<AppProps> = ({ config }) => {
   // 2. i18n Hook
   const { locale, toggleLocale, t } = useI18n(resolveInitialLocale(config.locale));
 
-  // 3. Domain Hooks (injizieren die aktuelle Strategie)
+  // 3. Domain hooks (receive the active strategy)
   const ws = useWorkspaces(strategy, config.rootDir);
-  const pkg = usePackages(
-    strategy,
-    ws.active,
-    ws.internalIds,
-    config.excludeScopes,
-    config.channel,
-  );
+  const pkg = usePackages(strategy, ws.active, ws.modules, config, config.channel);
   const updater = useUpdater(strategy, config.rootDir, setView, {
     script: config.postUpdateScript,
     label: config.postUpdateLabel,
   });
 
-  // 4. Maskottchen-Zustand
+  // 4. Mascot state
   const mascotState =
     view === 'updating'
       ? 'updating'
@@ -78,29 +72,28 @@ export const App: React.FC<AppProps> = ({ config }) => {
           ? 'success'
           : 'idle';
 
-  // 5. Tastatur-Steuerung
+  // 5. Keyboard handling
   useInput((input, key) => {
-    // Wenn das Version-Modal aktiv ist, übernimmt useInput in VersionModal die Steuerung
+    // While the version modal is open, its own useInput handles all keys
     if (view === 'version_modal') {
       return;
     }
 
-    // Global: Beenden
+    // Global: quit
     if (input === 'q' && view !== 'updating') {
       exit();
       return;
     }
 
-    // Splash Screen: Beliebige Taste überspringt direkt ins Dashboard
+    // Splash screen: Space or Enter skips straight to the dashboard (the scan already runs)
     if (view === 'splash') {
       if (key.return || input === ' ') {
         setView('dashboard');
-        pkg.scan();
       }
       return;
     }
 
-    // Global: Sprache umschalten ([L])
+    // Global: toggle language ([L])
     if ((input === 'l' || input === 'L') && view !== 'updating') {
       toggleLocale();
       return;
@@ -115,7 +108,6 @@ export const App: React.FC<AppProps> = ({ config }) => {
       } else if (key.return) {
         ws.setActiveIndex(modalIndex);
         setView('dashboard');
-        pkg.scan();
       } else if (key.escape || input === 'w') {
         setView('dashboard');
       }
@@ -133,18 +125,18 @@ export const App: React.FC<AppProps> = ({ config }) => {
 
     // ── Dashboard ──
     if (view === 'dashboard') {
-      // Ökosystem umschalten ([E])
+      // Switch ecosystem ([E])
       if (input === 'e' || input === 'E') {
         toggleEcosystem();
         return;
       }
 
-      // Modul auswählen ([W])
+      // Select module ([W])
       if (input === 'w') {
         setModalIndex(ws.activeIndex);
         setView('workspace_modal');
       } else if (input === 'v' || input === 'V') {
-        // Version gezielt heraussuchen ([V])
+        // Pick a specific version ([V])
         const focused = pkg.visible[pkg.cursor];
         if (focused) {
           setVersionPickerCandidate(focused);
@@ -171,25 +163,22 @@ export const App: React.FC<AppProps> = ({ config }) => {
         pkg.scan();
       } else if (input === 'u' && pkg.counts.selectedCount > 0 && !pkg.loading) {
         const selected = pkg.packages.filter((p) => p.selected);
-        updater.run(ws.active, selected, t);
+        updater.run(ws.active, selected);
       }
     }
   });
 
   return (
     <Box flexDirection="column" padding={1}>
-      {/* 1. Initialer Splash Screen (fest auf Englisch) */}
+      {/* 1. Initial splash screen (always English) */}
       {view === 'splash' && (
         <SplashScreen
-          onComplete={() => {
-            setView('dashboard');
-            pkg.scan();
-          }}
+          onComplete={() => setView('dashboard')}
           author={config.author}
         />
       )}
 
-      {/* 2. Dashboard-Ansichten */}
+      {/* 2. Dashboard views */}
       {view !== 'splash' && (
         <>
           <Header
@@ -214,6 +203,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
             <VersionModal
               candidate={versionPickerCandidate}
               strategy={strategy}
+              config={config}
               t={t}
               onSelect={(chosenVersion) => {
                 pkg.setCustomVersion(versionPickerCandidate.coordinate.identifier, chosenVersion);
@@ -244,7 +234,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
             <>
               <WorkspaceBar
                 module={ws.active}
-                excludeScopes={config.excludeScopes}
+                internalScopes={config.internalScopes}
                 strategy={strategy}
                 t={t}
               />
@@ -258,6 +248,8 @@ export const App: React.FC<AppProps> = ({ config }) => {
                 items={pkg.visible}
                 cursor={pkg.cursor}
                 loading={pkg.loading}
+                error={pkg.error}
+                skipped={pkg.skipped}
                 t={t}
               />
               <StatusBar

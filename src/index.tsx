@@ -11,7 +11,8 @@
 
 import React from 'react';
 import { render } from 'ink';
-import { loadConfig } from './config.js';
+import { ConfigError, loadConfig } from './config.js';
+import { EcosystemFactory } from './domain/ecosystem-factory.js';
 import { App } from './app.js';
 import { parseCliArgs, printCliHelp } from './cli/parser.js';
 import { handleModulesCommand } from './cli/command-modules.js';
@@ -22,8 +23,20 @@ import { handleInitCommand } from './cli/command-init.js';
 import { startMcpServer } from './mcp/mcp-server.js';
 
 async function main() {
-  const config = loadConfig();
+  let config;
+  try {
+    config = loadConfig();
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    // Nothing has been done yet; stderr keeps stdout free for machine-readable output.
+    process.stderr.write(`❌ ${err.message}\n`);
+    process.exit(1);
+  }
+  EcosystemFactory.configure({ mavenPlugins: config.mavenPlugins });
   const options = parseCliArgs(process.argv.slice(2));
+
+  // stderr keeps JSON output on stdout machine-readable.
+  for (const notice of [...config.deprecations, ...config.warnings]) process.stderr.write(`⚠️  ${notice}\n`);
 
   // 1. Help
   if (options.subcommand === 'help' || options.help) {
@@ -49,7 +62,7 @@ async function main() {
   }
 
   if (options.subcommand === 'versions') {
-    const exitCode = await handleVersionsCommand(options);
+    const exitCode = await handleVersionsCommand(options, config);
     process.exit(exitCode);
   }
 

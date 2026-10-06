@@ -12,7 +12,7 @@ interface Props {
   t: Translations;
 }
 
-/** Modaler Modul-Auswähler für das aktuelle Ökosystem */
+/** Modal module selector for the active ecosystem. */
 export const WorkspaceModal: React.FC<Props> = ({ modules, focusedIndex, strategy, t }) => (
   <Box
     flexDirection="column"

@@ -1,42 +1,36 @@
 /**
- * 🪶 Elevate — CLI Command: `versions`
+ * Elevate — CLI command: `versions`
  *
- * Retrieves the full version release history of a package from the registry.
+ * Retrieves the published version history of a package from the registry.
  */
 
 import type { CliOptions } from './parser.js';
+import type { ElevateConfig } from '../config.js';
 import { EcosystemFactory } from '../domain/ecosystem-factory.js';
-import { isPreReleaseVersion, extractPreReleaseTag } from '../adapters/maven/maven-registry.js';
+import { isPreReleaseVersion, extractPreReleaseTag } from '../domain/versions.js';
+import { coordinateFromIdentifier, lookupVersions } from '../application/version-lookup.js';
 
-export async function handleVersionsCommand(options: CliOptions): Promise<number> {
+export async function handleVersionsCommand(options: CliOptions, config: ElevateConfig): Promise<number> {
   const pkgIdentifier = options.positional;
   if (!pkgIdentifier) {
     console.error('❌ Error: Please specify a package name (e.g. `elevate versions chalk`).');
     return 1;
   }
 
-  // Determine ecosystem: if contains ':' -> default to Maven, otherwise npm
+  // An identifier containing ':' is a Maven coordinate unless stated otherwise.
   const ecosystem = options.ecosystem ?? (pkgIdentifier.includes(':') ? 'maven' : 'npm');
   const strategy = EcosystemFactory.getStrategy(ecosystem);
+  const coordinate = coordinateFromIdentifier(pkgIdentifier, ecosystem);
 
-  let coordinate;
-  if (ecosystem === 'maven') {
-    const parts = pkgIdentifier.split(':');
-    coordinate = {
-      identifier: pkgIdentifier,
-      group: parts[0],
-      artifact: parts[1] || parts[0]!,
-      ecosystem: 'maven' as const,
-    };
-  } else {
-    coordinate = {
-      identifier: pkgIdentifier,
-      artifact: pkgIdentifier,
-      ecosystem: 'npm' as const,
-    };
+  let versions: string[];
+  try {
+    versions = await lookupVersions(strategy, coordinate, config);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (options.json) console.log(JSON.stringify({ error: message, package: pkgIdentifier }, null, 2));
+    else console.error(`❌ ${message}`);
+    return 1;
   }
-
-  const versions = await strategy.registry.getAllVersions(coordinate);
 
   if (options.json) {
     console.log(
@@ -59,17 +53,14 @@ export async function handleVersionsCommand(options: CliOptions): Promise<number
     return 0;
   }
 
-  console.log(`\n🪶 Published versions for '${pkgIdentifier}' (${strategy.icon} ${strategy.displayName}, ${versions.length} total):\n`);
+  console.log(
+    `\n🪶 Published versions for '${pkgIdentifier}' (${strategy.icon} ${strategy.displayName}, ${versions.length} total):\n`,
+  );
   for (const v of versions.slice(0, 30)) {
-    const isPre = isPreReleaseVersion(v);
-    const tag = isPre ? `[${extractPreReleaseTag(v) || 'PRE'}]` : '[STABLE]';
+    const tag = isPreReleaseVersion(v) ? `[${extractPreReleaseTag(v) || 'PRE'}]` : '[STABLE]';
     console.log(`  • ${v.padEnd(25)} ${tag}`);
   }
-  if (versions.length > 30) {
-    console.log(`  … and ${versions.length - 30} older versions.\n`);
-  } else {
-    console.log('');
-  }
+  console.log(versions.length > 30 ? `  … and ${versions.length - 30} older versions.\n` : '');
 
   return 0;
 }

@@ -22,6 +22,16 @@ export const de: Translations = {
     allUpToDate: '🎉 Alle Abhängigkeiten in diesem Tab sind auf dem neuesten Stand!',
     moreAbove: '▲ … weitere oben',
     moreBelow: (remaining) => `▼ … weitere unten (${remaining} übrig)`,
+    scanFailed: (message) => `❌ Scan fehlgeschlagen: ${message}`,
+    skippedHeading: (count) => `⚠️ ${count} Abhängigkeit${count === 1 ? '' : 'en'} nicht angeboten:`,
+    skipReason: (reason) =>
+      ({
+        'private-on-public-registry': 'internes Paket, aber die Registry ist öffentlich — nicht abgefragt',
+        'lookup-failed': 'Abfrage der Registry fehlgeschlagen',
+        'managed-externally': 'Version wird außerhalb dieses Repos verwaltet',
+        'declaration-mismatch': 'Ort der Versionsangabe ist nicht eindeutig',
+        'invalid-name': 'ungültiger Paketname',
+      })[reason],
   },
   badges: {
     patch: '[Patch]',
@@ -29,12 +39,14 @@ export const de: Translations = {
     major: '[MAJOR]',
     dev: '(dev/test)',
     prod: '(prod/compile)',
+    align: '[Angleichen]',
+    internal: '[Intern]',
   },
   status: {
     selectedOf: (selected, total) => `${selected} von ${total}`,
     breakdown: (patch, minor, major) => `(${patch} Patch, ${minor} Minor, ${major} Major)`,
-    symlinksProtected: (scopes) => `🛡️ Interne ${scopes.map((s) => `${s}/*`).join(', ')} geschützt`,
-    defaultProtected: '🛡️ Interne Monorepo-Module geschützt',
+    internalScopes: (scopes) => `🏢 Intern: ${scopes.join(', ')}`,
+    noInternalScopes: '🏢 Workspace-Module werden lokal angeglichen',
   },
   controls: {
     navigate: 'Navigieren',
@@ -75,6 +87,9 @@ export const de: Translations = {
     funding: (msg) => `💡 Funding: ${msg}`,
     postScript: (label) => `🔍 ${label}:`,
     backHint: '[Enter] Zurück zum Dashboard   │   [Q] Beenden',
+    rolledBackTitle: '↩️ Aktualisierung fehlgeschlagen — alle Änderungen zurückgenommen',
+    rolledBack: 'Das Repository ist im selben Zustand wie vor der Aktualisierung.',
+    changedFiles: (files) => `📝 Geändert: ${files.join(', ')}`,
   },
   mascot: {
     name: 'Pip',

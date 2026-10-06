@@ -13,7 +13,7 @@ interface Props {
   ecosystem?: Ecosystem;
 }
 
-/** Statusleiste: Zähler links, Hühnchen-Mascot rechts */
+/** Status bar: counters on the left, mascot on the right. */
 export const StatusBar: React.FC<Props> = ({
   counts,
   visibleCount,
@@ -29,7 +29,7 @@ export const StatusBar: React.FC<Props> = ({
       justifyContent="space-between"
       alignItems="center"
     >
-      {/* Linke Seite: Zähler (fest am linken Rand) */}
+      {/* Left: counters (pinned to the left edge) */}
       <Box>
         <Text bold>{t.status.selectedOf(counts.selectedCount, visibleCount)} </Text>
         <Text color={theme.colors.muted}>
@@ -37,7 +37,7 @@ export const StatusBar: React.FC<Props> = ({
         </Text>
       </Box>
 
-      {/* Rechte Seite: Süßes animiertes Hühnchen */}
+      {/* Right: animated mascot */}
       <ChickenMascot state={mascotState} t={t} ecosystem={ecosystem} />
     </Box>
   );

@@ -1,8 +1,8 @@
 /**
  * 🪶 Elevate — Ecosystem Strategy Interface (Strategy Pattern)
  *
- * Kapselt das gesamte plattformspezifische Verhalten eines
- * Ökosystems (npm vs. Maven) hinter einer einheitlichen Strategie.
+ * Encapsulates all ecosystem-specific behaviour (npm vs. Maven) behind
+ * one common strategy.
  */
 
 import type { Ecosystem, ProjectModule } from './models.js';
@@ -21,13 +21,13 @@ export interface TabLabels {
 }
 
 export interface EcosystemStrategy {
-  /** Ökosystem-Kennung */
+  /** Ecosystem identifier. */
   readonly ecosystem: Ecosystem;
-  /** Anzeigename */
+  /** Display name. */
   readonly displayName: string;
-  /** Icon / Emoji */
+  /** Icon / emoji. */
   readonly icon: string;
-  /** Dateiname des Modul-Manifests (z. B. package.json, pom.xml) */
+  /** File name of the module manifest (e.g. package.json, pom.xml). */
   readonly manifestFile: string;
 
   /** Ports */
@@ -37,7 +37,7 @@ export interface EcosystemStrategy {
   readonly updater: DependencyUpdaterPort;
   readonly verifier: VerificationPort;
 
-  /** Liefert die für das Ökosystem passenden Tab-Labels */
+  /** Tab labels for this ecosystem. */
   getTabLabels(
     counts: { total: number; prodCount: number; devCount: number },
     t: any,

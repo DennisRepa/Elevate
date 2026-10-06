@@ -21,7 +21,8 @@
 * **Targeted Version Selection:** Interactive modal to search, filter, and pick any published version (`[V]`), not just `latest`.
 * **Runtime Ecosystem Switching:** Switch instantly between Node.js and Maven modules (`[E]`).
 * **Release Channels:** Configurable channels (`stable` vs. `all`) with automatic filtering of pre-releases (alpha, beta, rc, snapshot).
-* **Monorepo Scope Protection:** Prevents private packages (`@my-org/*`, `com.mycompany.*`) and local symlinks from being overwritten by public registries.
+* **Internal Dependencies:** Aligns workspace modules to their local versions and looks up internal packages (`@my-org/*`, `com.mycompany.*`) only in private registries — never on a public one.
+* **Rollback on Failure:** If installation, the workspace link check or verification fails, every touched file is restored.
 * **Safety Guardrails & Verification:** Automatic post-update verification (`npm install`, `mvn test-compile`) with rollback safety and major-version warnings.
 * **Agentic & CI/CD Ready:** Full headless CLI (`--json`) and native Model Context Protocol (MCP) server for integration with autonomous AI coding agents.
 * **Bilingual Interface:** Instant language toggle between English and German (`[L]`).
@@ -33,8 +34,8 @@
 
 | Ecosystem | Package Manager | Manifest File | Primary Registry | Monorepo Support | Verification Method | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| **Node.js** (JS / TS) | `npm` | `package.json` | [npm Registry](https://registry.npmjs.org) | Root & npm Workspaces | `npm install` | ✅ Supported |
-| **Java** (JVM) | `Maven` (`mvn`) | `pom.xml` | [Maven Central](https://repo1.maven.org/maven2) | Root POM & nested sub-modules | `mvn test-compile` | ✅ Supported |
+| **Node.js** (JS / TS) | `npm` | `package.json` | Configured npm registry (`.npmrc`) | Root & npm Workspaces (glob patterns) | `npm install` + `npm ls` | ✅ Supported |
+| **Java** (JVM) | `Maven` (`mvnw` / `mvn`) | `pom.xml` | Repositories & mirrors from Maven's own settings | Root POM, reactor & parent POMs | `mvn test-compile -amd` | ✅ Supported |
 
 > **Planned:** Support for Python (`pip`, `poetry`, `uv`), `pnpm`, `yarn`, and `Gradle` is on the roadmap.
 
@@ -195,7 +196,8 @@ Elevate operates with zero configuration by default. Optional settings can be de
 {
   "channel": "stable",
   "locale": "en",
-  "excludeScopes": ["@my-org", "com.mycompany"],
+  "internalScopes": ["@my-org", "com.mycompany"],
+  "mavenPlugins": { "help": "3.5.2", "versions": "2.22.0" },
   "postUpdateScript": "npm test",
   "postUpdateLabel": "Run test suite"
 }
@@ -205,9 +207,18 @@ Detailed parameter references are available in [`docs/en.md`](./docs/en.md) and 
 
 ---
 
+## 🧭 Scope and known limits
+
+* **npm only for Node.js.** Elevate drives npm. Repositories managed by pnpm, Yarn or Bun are refused (scans and updates say why and change nothing); Maven modules in the same repository still work.
+* **Broken configuration stops Elevate.** An `elevate.config.json` that is not valid JSON, not an object, or whose `internalScopes` is not a list of strings is reported and Elevate exits with code `1`, because ignoring it would switch off the protection of internal packages. Without any configuration file Elevate works with defaults.
+* **Dependency sections.** `dependencies`, `devDependencies` and `optionalDependencies` are covered. `peerDependencies` and `overrides` are never changed.
+* **Maven.** Maven plugin versions and declarations inside `<profiles>` are not offered. Dependencies whose version is declared outside the repository (an external parent or BOM) are listed as *not offered* with the reason.
+
+---
+
 ## 📄 License & Sponsorship
 
-Elevate is open-source software licensed under the [MIT License](./package.json).
+Elevate is open-source software licensed under the [MIT License](./LICENSE).
 
 * **Ko-fi:** [Support on Ko-fi](https://ko-fi.com/dennisrepa)
 * **npm:** `npm fund @dennisrepa/elevate`

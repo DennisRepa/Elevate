@@ -59,23 +59,28 @@ Use the Elevate MCP tools whenever the task involves:
 ## Important
 **Never** run raw \`npm update\`, \`npm install <pkg>@latest\`, or manually edit
 \`package.json\` / \`pom.xml\` version fields. Always use Elevate's MCP tools
-instead — they handle monorepo-aware scanning, safety guardrails (major version
-protection), and post-update verification automatically.
+instead — they handle monorepo-aware scanning, internal dependency alignment,
+safety guardrails (major version protection), post-update verification and
+automatic rollback.
 
 ## Available MCP Tools
-| Tool                    | Purpose                                                      |
-|-------------------------|--------------------------------------------------------------|
-| \`elevate_scan\`          | Scan dependencies for available updates with diff analysis   |
-| \`elevate_update\`        | Apply updates with safety guardrails and verification        |
-| \`elevate_get_versions\`  | List all published versions of a specific package            |
-| \`elevate_list_modules\`  | Discover all modules in a monorepo                           |
-| \`elevate_health_check\`  | Run build & audit verification after updates                 |
+| Tool                          | Purpose                                                       |
+|-------------------------------|---------------------------------------------------------------|
+| \`elevate_discover_modules\`    | Discover all modules in a monorepo                            |
+| \`elevate_scan\`                | Scan for updates and internal dependencies to align           |
+| \`elevate_get_versions\`        | List all published versions of a specific package             |
+| \`elevate_apply_updates\`       | Apply updates with guardrails, verification and rollback      |
+| \`elevate_verify\`              | Run build & consistency verification                          |
 
 ## Typical Workflow
-1. \`elevate_list_modules\` — Discover project structure
-2. \`elevate_scan\` — Identify outdated dependencies
-3. \`elevate_update\` — Apply selected updates (use \`--allow-major\` only when explicitly requested)
-4. \`elevate_health_check\` — Verify build integrity
+1. \`elevate_discover_modules\` — Discover project structure
+2. \`elevate_scan\` — Identify outdated dependencies. Updates with \`action: "align"\` set an
+   internal dependency to the local version of a workspace module. Entries under
+   \`skipped\` were deliberately not offered; report their \`explanation\` instead of
+   working around them (e.g. internal packages are never looked up on public registries).
+3. \`elevate_apply_updates\` — Apply selected updates (\`allowMajor\` only when explicitly
+   requested). A failed install or verification is rolled back automatically.
+4. \`elevate_verify\` — Verify build integrity when needed
 `;
 
 // ── Path Helpers ─────────────────────────────────────────────────────────────

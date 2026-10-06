@@ -1,0 +1,7 @@
+{
+  "name": "@acme/utils",
+  "version": "1.4.0",
+  "dependencies": {
+    "@acme/core": "^2.0.0"
+  }
+}

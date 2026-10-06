@@ -7,7 +7,7 @@ interface Props {
   t: Translations;
 }
 
-/** Tastenkürzel-Leiste inkl. [E] Ökosystem-Wechsel */
+/** Keyboard shortcut bar, including [E] to switch ecosystems. */
 export const ControlsBar: React.FC<Props> = ({ t }) => (
   <Box marginTop={1} flexWrap="wrap">
     <Text color={theme.colors.brandLight} bold>[↑/↓]</Text>

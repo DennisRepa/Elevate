@@ -1,3 +1,7 @@
+/**
+ * Elevate — npm ecosystem strategy: wires the npm adapters together.
+ */
+
 import type { EcosystemStrategy, TabLabels } from '../../domain/ecosystem-strategy.js';
 import type { Ecosystem } from '../../domain/models.js';
 import { NpmModuleDiscoveryAdapter } from './npm-discovery.js';
@@ -14,7 +18,7 @@ export class NpmEcosystemStrategy implements EcosystemStrategy {
 
   readonly discovery = new NpmModuleDiscoveryAdapter();
   readonly registry = new NpmRegistryAdapter();
-  readonly reader = new NpmDependencyAdapter(this.registry);
+  readonly reader = new NpmDependencyAdapter(this.registry, this.registry.config);
   readonly updater = new NpmUpdaterAdapter();
   readonly verifier = new NpmVerificationAdapter();
 
