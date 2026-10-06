@@ -15,6 +15,7 @@ its authors have never seen.
 | [07-maven-plugin-versions.feature](./07-maven-plugin-versions.feature) | `PLUG` | Versions of the Maven plugins Elevate runs |
 | [08-npm-audit-status.feature](./08-npm-audit-status.feature) | `AUDIT` | Reading npm's vulnerability summary |
 | [09-configuration-errors.feature](./09-configuration-errors.feature) | `CONF` | A broken `elevate.config.json` stops Elevate |
+| [10-changelog-release.feature](./10-changelog-release.feature) | `REL` | The changelog drives releases |
 
 ## Conventions
 
@@ -48,6 +49,7 @@ its authors have never seen.
 | `WIN` | `test/unit/windows-paths.test.ts`, `WIN-03` in `test/integration/windows-paths.test.ts` |
 | `PLUG` | `test/unit/maven-plugins.test.ts` |
 | `AUDIT` | `test/unit/npm-audit.test.ts` |
+| `REL` | `test/unit/changelog-release.test.ts` (`REL-11` and `REL-12` are checked by the commands below) |
 | `CONF` | `test/unit/config-errors.test.ts` (`CONF-07` is checked by running the command line) |
 
 ## Implementation contract
