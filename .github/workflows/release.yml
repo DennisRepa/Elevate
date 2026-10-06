@@ -1,7 +1,8 @@
 name: Release
 
 # Releases are tag-driven:
-#   npm version <patch|minor|major>   # bumps package.json + creates tag vX.Y.Z
+#   npm version <patch|minor|major>   # bumps package.json, turns "Unreleased" in CHANGELOG.md
+#                                     # into the new version and creates tag vX.Y.Z
 #   git push --follow-tags
 on:
   push:
@@ -24,6 +25,9 @@ jobs:
             echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${PKG}"
             exit 1
           fi
+
+      - name: Changelog has notes for this version
+        run: node scripts/changelog.mjs notes "${GITHUB_REF_NAME#v}" > /dev/null
 
   build-binaries:
     name: Build Binary (${{ matrix.os }}-${{ matrix.arch }})
@@ -84,6 +88,11 @@ jobs:
     needs: build-binaries
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+
+      - name: Release notes from CHANGELOG.md
+        run: node scripts/changelog.mjs notes "${GITHUB_REF_NAME#v}" > release-notes.md
+
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
@@ -93,4 +102,4 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: release-assets/*
-          generate_release_notes: true
+          body_path: release-notes.md

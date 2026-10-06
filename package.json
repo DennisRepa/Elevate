@@ -45,7 +45,9 @@
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit -p . && tsc -p tsconfig.test.json",
     "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "preversion": "node scripts/changelog.mjs check",
+    "version": "node scripts/changelog.mjs release && git add CHANGELOG.md"
   },
   "author": {
     "name": "Dennis Répa",
