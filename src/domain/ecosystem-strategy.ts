@@ -6,6 +6,7 @@
  */
 
 import type { Ecosystem, ProjectModule } from './models.js';
+import type { VersionPolicy } from './version-policy.js';
 import type {
   ModuleDiscoveryPort,
   RegistryPort,
@@ -33,6 +34,9 @@ export interface EcosystemStrategy {
   readonly icon: string;
   /** File name of the module manifest (e.g. package.json, pom.xml). */
   readonly manifestFile: string;
+
+  /** Version rules of this ecosystem. */
+  readonly versioning: VersionPolicy;
 
   /** Ports */
   readonly discovery: ModuleDiscoveryPort;

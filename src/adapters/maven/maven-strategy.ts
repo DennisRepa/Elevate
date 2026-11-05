@@ -4,6 +4,7 @@
 
 import type { EcosystemStrategy, TabLabels } from '../../domain/ecosystem-strategy.js';
 import type { Ecosystem } from '../../domain/models.js';
+import { mavenVersionPolicy } from '../../domain/version-policy.js';
 import { MavenModuleDiscoveryAdapter } from './maven-discovery.js';
 import { MavenRegistryAdapter } from './maven-registry.js';
 import { MavenDependencyAdapter } from './maven-scanner.js';
@@ -17,6 +18,7 @@ export class MavenEcosystemStrategy implements EcosystemStrategy {
   readonly displayName = 'Java / Maven';
   readonly icon = '☕';
   readonly manifestFile = 'pom.xml';
+  readonly versioning = mavenVersionPolicy;
 
   readonly discovery = new MavenModuleDiscoveryAdapter();
   readonly registry: MavenRegistryAdapter;
