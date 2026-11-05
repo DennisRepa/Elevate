@@ -122,7 +122,11 @@ Dateien `specs/15-cargo-discovery.feature` (`CDISC`), `16-cargo-requirements` (`
 
 Abweichung von der Planung festhalten: `CVER-02` — eine geänderte `Cargo.lock` löst *keinen* Workspace-Check aus (jedes Update ändert sie), nur das Wurzel-Manifest.
 
-## 9. Lockfile-only-Updates (eigener Branch `feat/cargo-lock-updates`)
+## 9. Lockfile-only-Updates (eigener Branch `feat/cargo-lock-updates`) — umgesetzt
+
+Umgesetzt mit den vier Empfehlungen (gemischt mit `[Lock]`-Marker, nur direkte Abhängigkeiten, Manifest-Kandidat hat Vorrang, vorselektiert); Specs `21-cargo-lock-updates.feature`, `CLOCK-01` bis `CLOCK-25`.
+
+Ursprüngliche Planung:
 
 **Ziel:** Für Apps mit eingechecktem `Cargo.lock` die häufigste Aktualisierung abdecken: kompatible Versionen, ohne `Cargo.toml` zu ändern.
 
