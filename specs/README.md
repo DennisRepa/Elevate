@@ -19,6 +19,12 @@ its authors have never seen.
 | [12-pnpm-internal-dependencies.feature](./12-pnpm-internal-dependencies.feature) | `PLINK` | Linking, aligning and verifying workspace modules under pnpm |
 | [13-pnpm-install-and-verification.feature](./13-pnpm-install-and-verification.feature) | `PINST` | The pnpm commands Elevate runs and what it makes of them |
 | [14-pnpm-catalogs.feature](./14-pnpm-catalogs.feature) | `CAT` | `catalog:` dependencies and the catalogs of `pnpm-workspace.yaml` |
+| [15-cargo-discovery.feature](./15-cargo-discovery.feature) | `CECO`, `CDISC` | Cargo as an ecosystem; which `Cargo.toml` files are modules; discovery problems |
+| [16-cargo-requirements.feature](./16-cargo-requirements.feature) | `CREQ` | Cargo version requirements, the style of a new requirement, the version offered |
+| [17-cargo-declarations.feature](./17-cargo-declarations.feature) | `CDECL`, `CSCAN`, `CALIGN`, `CORIG` | Where a Cargo version is written; scans, alignment, origin of a dependency |
+| [18-cargo-registry.feature](./18-cargo-registry.feature) | `CREG`, `CCFG` | The sparse index and the Cargo configuration that decides where lookups go |
+| [19-cargo-update.feature](./19-cargo-update.feature) | `CUPD` | Editing `Cargo.toml`, refreshing `Cargo.lock`, rollback |
+| [20-cargo-verification.feature](./20-cargo-verification.feature) | `CVER`, `CWIN`, `CUI` | `cargo check`, paths on the command line, the dashboard |
 
 ## Conventions
 
@@ -61,6 +67,9 @@ its authors have never seen.
 | `PLINK` | `test/unit/pnpm-links.test.ts` |
 | `PINST` | `test/unit/pnpm-install.test.ts`; the `@integration` scenarios in `test/integration/pnpm.test.ts` |
 | `CAT` | `test/unit/pnpm-catalogs.test.ts`; `CAT-15` in `test/integration/pnpm.test.ts` |
+| Cargo prefixes | `test/unit/cargo-*.test.ts`, `test/unit/discovery-diagnostics.test.tsx`, `test/unit/version*.test.ts`, `test/unit/components.test.tsx` (`CUI`), `test/integration/cargo-workflow.test.ts` (`CSCAN-04`, `CDECL-15`, `CUPD-09`, `CUPD-10`, `CUPD-14`, `CUPD-15`, `CUPD-16`, `CCFG-09`) |
+
+`test/unit/cargo-specs.test.ts` keeps the Cargo specifications and their tests in step: every scenario ID of `15-` to `20-cargo-*.feature` must start the title of a test, every Cargo test ID must be a scenario, and an ID names exactly one scenario. Several tests may share an ID when they prove one scenario in parts.
 
 `PM-16` and `PM-17` are new in `test/unit/package-manager.test.ts`; `PM-05` to
 `PM-08`, `PM-11`, `PM-12` and `PM-13` change there (Yarn tree instead of pnpm tree).
@@ -278,6 +287,15 @@ places the scenarios refer to, so tests and code meet.
   `declaration.kind` is `'catalog'` with `setCatalogRange` into
   `declaration.file` and rewrites a module's package.json only when at least
   one of its candidates is not a catalog candidate.
+
+### Cargo
+
+* `src/adapters/cargo/` holds the adapter: `cargo-metadata.ts` (`cargo metadata --no-deps`), `cargo-discovery.ts`, `cargo-toml.ts` (declarations with source ranges), `cargo-requirement.ts` (requirements as Cargo reads them), `cargo-index.ts` and `cargo-versions.ts` (sparse index, version choice), `cargo-config.ts` (source replacement, fails closed), `cargo-scanner.ts`, `cargo-updater.ts` with `cargo-lockfile.ts`, `cargo-verifier.ts`, `cargo-strategy.ts`.
+* `EcosystemStrategy` gains `versioning: VersionPolicy` (`src/domain/version-policy.ts`); no code outside the adapters asks for the ecosystem's name to decide a version rule.
+* `ModuleDiscoveryPort` gains the optional `diagnostics(): string[]`: problems of the last `discover` run that did not stop it.
+* `src/version.ts` exports `VERSION`; builds inject it as `__ELEVATE_VERSION__`.
+* Verified against Cargo 1.97: `CARGO_SOURCE_*` variables are ignored by Cargo and therefore by Elevate (`CCFG-05`); `cargo update --precise` is ignored while the old lock entry no longer fits the manifest, hence the two-step lock refresh (`CUPD-04`, `CUPD-13`).
+* Not verified at the source (documentation hosts were unreachable): the handling of authentication status codes (`CREG-06`) and of unknown index format versions.
 
 ## Not specified as scenarios
 
