@@ -89,6 +89,9 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('❌ Elevate fatal error:', err);
+  // The message carries the words of the tool that failed (Gradle's, Maven's, npm's). The stack,
+  // and the output attached to the error, only help when debugging Elevate itself.
+  const detail = err instanceof Error ? (process.env.ELEVATE_DEBUG ? (err.stack ?? err.message) : `${err.name}: ${err.message}`) : String(err);
+  console.error(`❌ Elevate fatal error: ${detail}`);
   process.exit(1);
 });
