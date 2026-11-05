@@ -9,7 +9,7 @@
  * the configured internal scopes, and explicit per-scope registry mappings.
  */
 
-import type { DependencyOrigin, Ecosystem, ProjectModule } from './models.js';
+import { isJvmEcosystem, type DependencyOrigin, type Ecosystem, type ProjectModule } from './models.js';
 
 /** Index of the repository's own modules, keyed by dependency identifier. */
 export type WorkspaceIndex = ReadonlyMap<string, ProjectModule>;
@@ -70,7 +70,7 @@ export function matchesInternalScope(
   ecosystem: Ecosystem,
   internalScopes: readonly string[],
 ): boolean {
-  if (ecosystem === 'maven') {
+  if (isJvmEcosystem(ecosystem)) {
     const groupId = identifier.split(':')[0] ?? '';
     return internalScopes.some((entry) => {
       const prefix = entry.replace(/^@/, '').replace(/[.:/]+$/, '');

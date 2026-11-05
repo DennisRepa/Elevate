@@ -16,6 +16,8 @@ export const de: Translations = {
     all: (count) => `[1] Alle (${count})`,
     dependencies: (count) => `[2] Dependencies (${count})`,
     devDependencies: (count) => `[3] DevDependencies (${count})`,
+    main: (count) => `[2] Haupt (${count})`,
+    testAndPlugins: (count) => `[3] Test & Plugins (${count})`,
   },
   list: {
     scanning: '⏳ Prüfe Registry auf verfügbare Updates…',

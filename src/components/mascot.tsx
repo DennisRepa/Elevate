@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../theme.js';
 import type { Translations } from '../i18n/types.js';
-import type { Ecosystem } from '../domain/models.js';
+import { isJvmEcosystem, type Ecosystem } from '../domain/models.js';
 
 export type MascotState = 'idle' | 'scanning' | 'updating' | 'success';
 
@@ -83,7 +83,7 @@ export const ChickenMascot: React.FC<Props> = ({ state = 'idle', t, ecosystem = 
     wingRight = cur.r;
 
     const chirpsPool =
-      ecosystem === 'maven'
+      isJvmEcosystem(ecosystem)
         ? [...t.mascot.idleChirps, ...t.mascot.mavenChirps]
         : t.mascot.idleChirps;
 

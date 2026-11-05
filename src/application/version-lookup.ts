@@ -7,7 +7,7 @@
  */
 
 import type { ElevateConfig } from '../config.js';
-import type { DependencyCoordinate, Ecosystem } from '../domain/models.js';
+import { isJvmEcosystem, type DependencyCoordinate, type Ecosystem } from '../domain/models.js';
 import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
 import { matchesInternalScope } from '../domain/origin.js';
 
@@ -24,7 +24,7 @@ export class PublicLookupRefusedError extends Error {
 
 /** Builds a coordinate from a CLI-style identifier (`name` or `groupId:artifactId`). */
 export function coordinateFromIdentifier(identifier: string, ecosystem: Ecosystem): DependencyCoordinate {
-  if (ecosystem === 'maven') {
+  if (isJvmEcosystem(ecosystem)) {
     const [group, artifact] = identifier.split(':');
     return { identifier, group, artifact: artifact || group!, ecosystem };
   }

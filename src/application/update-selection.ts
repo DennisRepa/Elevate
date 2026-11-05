@@ -4,7 +4,14 @@
  */
 
 import semver from 'semver';
-import type { DependencyOriginKind, Ecosystem, ScanResult, UpdateCandidate, VersionDiff } from '../domain/models.js';
+import {
+  isJvmEcosystem,
+  type DependencyOriginKind,
+  type Ecosystem,
+  type ScanResult,
+  type UpdateCandidate,
+  type VersionDiff,
+} from '../domain/models.js';
 import { cleanJavaVersion, diffVersions, extractPreReleaseTag, isPreReleaseVersion, rangePrefix } from '../domain/versions.js';
 import { describeSkip } from './describe.js';
 
@@ -55,7 +62,7 @@ export function selectRequested(
         `'${request.identifier}' has no pending update. Specify a target version (e.g. ${request.identifier}@1.2.3).`,
       );
     }
-    if (options.ecosystem === 'maven') {
+    if (isJvmEcosystem(options.ecosystem)) {
       throw new UpdateSelectionError(
         `'${request.identifier}' has no pending update. Maven updates are written where the scan located the version; ` +
           'a dependency without an offered update cannot be retargeted.',
@@ -91,7 +98,7 @@ function retarget(found: UpdateCandidate, target: string | undefined, options: S
   // Maven updates are not resolved before verification. Accepting only versions
   // the repositories reported during the scan guarantees the target exists,
   // even when verification is skipped.
-  if (options.ecosystem === 'maven' && found.availableVersions && !found.availableVersions.includes(target)) {
+  if (isJvmEcosystem(options.ecosystem) && found.availableVersions && !found.availableVersions.includes(target)) {
     throw new UpdateSelectionError(
       `'${found.coordinate.identifier}' has no version ${target} in the configured repositories. ` +
         `Available: ${found.availableVersions.slice(0, 5).join(', ')}${found.availableVersions.length > 5 ? ', …' : ''}.`,
@@ -137,7 +144,7 @@ function manualNpmCandidate(identifier: string, target: string, options: Selecti
 }
 
 function computeDiff(current: string, target: string, ecosystem: Ecosystem): VersionDiff {
-  const to = ecosystem === 'maven' ? cleanJavaVersion(target) : semver.valid(target);
+  const to = isJvmEcosystem(ecosystem) ? cleanJavaVersion(target) : semver.valid(target);
   if (!to || !semver.valid(current)) return 'minor';
   return semver.eq(current, to) ? 'patch' : diffVersions(current, to);
 }

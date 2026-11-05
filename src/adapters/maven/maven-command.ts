@@ -10,7 +10,10 @@
 
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { runCommand } from '../shared/process.js';
+import { relativeToCwd, runCommand } from '../shared/process.js';
+
+// Re-exported so existing importers keep working (WIN contract).
+export { relativeToCwd };
 import type { RunResult } from '../shared/process.js';
 
 /** Thrown when neither a Maven Wrapper nor `mvn` is available. */
@@ -54,18 +57,6 @@ export function findMavenWrapper(fromDir: string, rootDir: string): string | und
   }
 }
 
-/**
- * Names a file relative to the working directory a process runs in, with the
- * platform's separators. The working directory is handed to the process
- * directly, so the directory the repository lives in (which may contain
- * characters cmd.exe would interpret) never appears in an argument. A file
- * that cannot be expressed relative to `cwd` (another drive on Windows) is
- * returned unchanged.
- */
-export function relativeToCwd(cwd: string, file: string): string {
-  const path = relative(cwd, file);
-  return isAbsolute(path) ? file : path || '.';
-}
 
 export interface MavenRunOptions {
   /** Working directory; also the starting point of the wrapper lookup. */

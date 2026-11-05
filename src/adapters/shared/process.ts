@@ -11,6 +11,7 @@
  */
 
 import { exec, spawn } from 'node:child_process';
+import { isAbsolute, relative } from 'node:path';
 
 export interface RunOptions {
   cwd: string;
@@ -133,4 +134,17 @@ export function tail(output: string, lines = 15): string {
 function quoteWindows(arg: string): string {
   // `=`, `,` and `;` separate arguments for batch files, so they force quoting too.
   return /^[\w.:\\/@+-]+$/.test(arg) ? arg : `"${arg}"`;
+}
+
+/**
+ * Names a file relative to the working directory a process runs in, with the
+ * platform's separators. The working directory is handed to the process
+ * directly, so the directory the repository lives in (which may contain
+ * characters cmd.exe would interpret) never appears in an argument. A file
+ * that cannot be expressed relative to `cwd` (another drive on Windows) is
+ * returned unchanged.
+ */
+export function relativeToCwd(cwd: string, file: string): string {
+  const path = relative(cwd, file);
+  return isAbsolute(path) ? file : path || '.';
 }

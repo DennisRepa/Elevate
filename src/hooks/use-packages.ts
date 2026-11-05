@@ -18,6 +18,7 @@ import type {
   SkippedDependency,
   VersionDiff,
 } from '../domain/models.js';
+import { isJvmEcosystem } from '../domain/models.js';
 import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
 import type { ElevateConfig } from '../config.js';
 import { cleanJavaVersion, diffVersions, extractPreReleaseTag, isPreReleaseVersion, rangePrefix } from '../domain/versions.js';
@@ -107,7 +108,7 @@ export function usePackages(
       prev.map((c) => {
         if (c.coordinate.identifier !== identifier) return c;
 
-        const target = c.coordinate.ecosystem === 'maven' ? cleanJavaVersion(chosenVersion) : semver.valid(chosenVersion);
+        const target = isJvmEcosystem(c.coordinate.ecosystem) ? cleanJavaVersion(chosenVersion) : semver.valid(chosenVersion);
         let diff: VersionDiff = 'minor';
         if (c.currentClean && target && semver.valid(c.currentClean)) {
           diff = semver.eq(c.currentClean, target) ? 'patch' : diffVersions(c.currentClean, target);

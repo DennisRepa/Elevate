@@ -5,7 +5,12 @@
  */
 
 /** Supported ecosystems / package managers. */
-export type Ecosystem = 'npm' | 'maven';
+export type Ecosystem = 'npm' | 'maven' | 'gradle';
+
+/** Whether the ecosystem uses `group:artifact` coordinates and JVM version rules (Maven, Gradle). */
+export function isJvmEcosystem(ecosystem: Ecosystem): boolean {
+  return ecosystem === 'maven' || ecosystem === 'gradle';
+}
 
 /** A module (npm workspace, Maven project) inside the repository. */
 export interface ProjectModule {
@@ -31,6 +36,14 @@ export interface ProjectModule {
    * module. Verification runs from there so dependent modules are rebuilt.
    */
   aggregatorDir?: string;
+  /** Gradle only: absolute directory of the Gradle build this project belongs to. */
+  buildDir?: string;
+  /** Gradle only: absolute directory of the root build of the run. */
+  buildRoot?: string;
+  /** Gradle only: kind of the build the project belongs to. */
+  buildKind?: 'root' | 'included' | 'buildSrc';
+  /** Gradle only: `group:name` of the project, the key of the workspace index. */
+  coordinates?: string;
 }
 
 /** Value object: the coordinates of a dependency. */
