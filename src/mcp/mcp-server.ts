@@ -48,7 +48,9 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
         {
           name: 'elevate_discover_modules',
           description:
-            'Discovers all repository modules and workspaces for Node/npm (package.json), Java/Maven (pom.xml) or Rust/Cargo (Cargo.toml).',
+            'Discovers all repository modules and workspaces for Node/npm (package.json), Java/Maven (pom.xml), ' +
+            'Rust/Cargo (Cargo.toml) or Java/Gradle (build.gradle). Gradle modules also report the kind of their build ' +
+            '(root, included, buildSrc).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -96,7 +98,7 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
               ecosystem: ECOSYSTEM_PROPERTY,
               identifier: {
                 type: 'string',
-                description: 'Package identifier (npm: chalk, maven: org.slf4j:slf4j-api, cargo: serde)',
+                description: 'Package identifier (npm: chalk, maven/gradle: org.slf4j:slf4j-api, gradle plugin: org.springframework.boot, cargo: serde)',
               },
             },
             required: ['identifier'],
@@ -199,6 +201,7 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
             relPath: m.relPath,
             isRoot: m.isRoot,
             version: m.version,
+            ...(m.buildKind ? { buildKind: m.buildKind } : {}),
           })),
         });
       }

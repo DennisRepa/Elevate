@@ -1,0 +1,3 @@
+rootProject.name = 'mono'
+include 'app', 'libs:core'
+includeBuild 'build-logic'

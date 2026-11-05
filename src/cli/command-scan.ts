@@ -98,14 +98,17 @@ export async function handleScanCommand(options: CliOptions, config: ElevateConf
       continue;
     }
 
-    const modulePom = module.isRoot ? 'pom.xml' : `${module.relPath}/pom.xml`;
+    // The files that count as the module's own: their declarations are not pointed out.
+    const prefix = module.isRoot ? '' : `${module.relPath}/`;
+    const ownFiles =
+      module.ecosystem === 'gradle' ? [`${prefix}build.gradle`, `${prefix}build.gradle.kts`] : [`${prefix}pom.xml`];
     if (result.candidates.length === 0) console.log('   ✨ All dependencies are up to date.');
     for (const u of result.candidates) {
       const diffTag = `[${u.diff.toUpperCase()}]`.padEnd(9);
       const actionTag = u.action === 'align' ? '[ALIGN] ' : u.action === 'lock' ? '[LOCK] ' : u.origin.kind === 'private' ? '[INTERNAL] ' : '';
       const preBadge = u.isPreRelease ? `[${u.preReleaseTag || 'PRE'}] ` : '';
-      const where = u.declaration && u.declaration.displayPath !== modulePom
-        ? `  (in ${u.declaration.displayPath}${u.declaration.propertyName ? ` \${${u.declaration.propertyName}}` : ''})`
+      const where = u.declaration && !ownFiles.includes(u.declaration.displayPath)
+        ? `  (in ${u.declaration.displayPath}${u.declaration.propertyName ? ` \${${u.declaration.propertyName}}` : ''}${u.declaration.entry ? ` ${u.declaration.entry}` : ''})`
         : '';
       console.log(
         `   • ${diffTag} ${actionTag}${preBadge}${u.coordinate.identifier.padEnd(36)} ${u.currentRange.padEnd(12)} ➔ ${u.latest}${where}`,

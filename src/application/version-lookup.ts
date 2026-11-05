@@ -24,7 +24,7 @@ export class PublicLookupRefusedError extends Error {
 
 /** Builds a coordinate from a CLI-style identifier (`name` or `groupId:artifactId`). */
 export function coordinateFromIdentifier(identifier: string, ecosystem: Ecosystem): DependencyCoordinate {
-  if (ecosystem === 'maven') {
+  if (ecosystem === 'maven' || ecosystem === 'gradle') {
     const [group, artifact] = identifier.split(':');
     return { identifier, group, artifact: artifact || group!, ecosystem };
   }
