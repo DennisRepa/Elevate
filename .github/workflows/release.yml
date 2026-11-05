@@ -19,7 +19,7 @@ jobs:
     name: Verify tag matches package.json
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
       - name: Compare versions
@@ -56,7 +56,7 @@ jobs:
             archive_name: elevate-darwin-arm64.tar.gz
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
 
