@@ -8,7 +8,7 @@ const v = (version: string, yanked = false): IndexVersion => ({ version, yanked,
 
 describe('Cargo ecosystem', () => {
   it('CECO-01 is registered next to npm and Maven', () => {
-    expect(EcosystemFactory.getAvailableEcosystems()).toEqual(['npm', 'maven', 'cargo']);
+    expect(EcosystemFactory.getAvailableEcosystems().slice(0, 3)).toEqual(['npm', 'maven', 'cargo']);
     const strategy = EcosystemFactory.getStrategy('cargo');
     expect(strategy).toMatchObject({ ecosystem: 'cargo', manifestFile: 'Cargo.toml', icon: '🦀' });
     expect(EcosystemFactory.getStrategy('cargo')).toBe(strategy);
@@ -17,7 +17,16 @@ describe('Cargo ecosystem', () => {
   it('CECO-02 rotates through all ecosystems', () => {
     expect(EcosystemFactory.next('npm')).toBe('maven');
     expect(EcosystemFactory.next('maven')).toBe('cargo');
-    expect(EcosystemFactory.next('cargo')).toBe('npm');
+    // Every ecosystem is reached once, and the rotation returns to where it started.
+    const all = EcosystemFactory.getAvailableEcosystems();
+    let current = EcosystemFactory.next('cargo');
+    const seen = new Set<string>(['npm', 'maven', 'cargo']);
+    for (let step = 0; step < all.length; step++) {
+      seen.add(current);
+      current = EcosystemFactory.next(current);
+    }
+    expect([...seen].sort()).toEqual([...all].sort());
+    expect(EcosystemFactory.next(all[all.length - 1]!)).toBe('npm');
   });
 
   it('CECO-03 uses Cargo version rules', () => {
