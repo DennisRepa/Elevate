@@ -16,6 +16,8 @@ export const en: Translations = {
     all: (count) => `[1] All (${count})`,
     dependencies: (count) => `[2] Dependencies (${count})`,
     devDependencies: (count) => `[3] DevDependencies (${count})`,
+    main: (count) => `[2] Main (${count})`,
+    testAndPlugins: (count) => `[3] Test & plugins (${count})`,
   },
   list: {
     scanning: '⏳ Checking registry for available updates…',
@@ -33,6 +35,7 @@ export const en: Translations = {
         'invalid-name': 'invalid package name',
         'not-linked': 'workspace package that pnpm does not link without the workspace: protocol',
         'catalog-unresolved': 'catalog entry could not be resolved',
+        'version-constraint': 'version is a selector or constraint, not a plain version',
       })[reason],
   },
   badges: {

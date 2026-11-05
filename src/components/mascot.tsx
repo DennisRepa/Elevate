@@ -83,7 +83,7 @@ export const ChickenMascot: React.FC<Props> = ({ state = 'idle', t, ecosystem = 
     wingRight = cur.r;
 
     const chirpsPool =
-      ecosystem === 'maven'
+      ecosystem === 'maven' || ecosystem === 'gradle'
         ? [...t.mascot.idleChirps, ...t.mascot.mavenChirps]
         : ecosystem === 'cargo'
           ? [...t.mascot.idleChirps, ...t.mascot.cargoChirps]

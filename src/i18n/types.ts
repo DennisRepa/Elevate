@@ -22,6 +22,8 @@ export interface Translations {
     all: (count: number) => string;
     dependencies: (count: number) => string;
     devDependencies: (count: number) => string;
+    main: (count: number) => string;
+    testAndPlugins: (count: number) => string;
   };
   list: {
     scanning: string;

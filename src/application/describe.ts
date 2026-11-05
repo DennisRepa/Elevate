@@ -24,6 +24,8 @@ export function describeSkip(skipped: SkippedDependency): string {
       return `catalog entry could not be resolved${detail}`;
     case 'incompatible-rust-version':
       return `newer versions need a newer Rust than the project's rust-version${detail}`;
+    case 'version-constraint':
+      return `version is a selector or constraint, not a plain version${detail}`;
     case 'locked-version-yanked':
       return `Cargo.lock pins a yanked release and no allowed release can replace it${detail}`;
   }

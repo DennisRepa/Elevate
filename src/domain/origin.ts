@@ -22,11 +22,16 @@ export interface OriginContext {
   scopedRegistries?: ReadonlyMap<string, string>;
 }
 
-/** Builds the workspace index from discovered modules. */
+/**
+ * Builds the workspace index from discovered modules, keyed by the identifier a
+ * dependency on the module has: `coordinates` (Gradle's `group:name`) when the
+ * module has them, its id otherwise (npm package name, Maven `groupId:artifactId`).
+ */
 export function buildWorkspaceIndex(modules: readonly ProjectModule[]): WorkspaceIndex {
   const index = new Map<string, ProjectModule>();
   for (const module of modules) {
-    if (module.id && module.id !== 'empty') index.set(module.id, module);
+    const key = module.coordinates ?? module.id;
+    if (key && key !== 'empty') index.set(key, module);
   }
   return index;
 }
@@ -60,7 +65,7 @@ export function classifyOrigin(
  * npm: `@scope` (or `@scope/`) matches every package in that scope; any other
  * entry matches the exact package name, or a name prefix when it ends in `*`.
  *
- * Maven: an entry matches the groupId itself and every groupId below it on a
+ * Maven and Gradle: an entry matches the groupId itself and every groupId below it on a
  * segment boundary — `com.acme` matches `com.acme` and `com.acme.billing`, but
  * not `com.acmecorp`. A leading `@` is ignored so one shared list can serve
  * both ecosystems.
@@ -70,7 +75,8 @@ export function matchesInternalScope(
   ecosystem: Ecosystem,
   internalScopes: readonly string[],
 ): boolean {
-  if (ecosystem === 'maven') {
+  // Maven and Gradle name a library `group:artifact`; the group is what a scope matches.
+  if (ecosystem === 'maven' || ecosystem === 'gradle') {
     const groupId = identifier.split(':')[0] ?? '';
     return internalScopes.some((entry) => {
       const prefix = entry.replace(/^@/, '').replace(/[.:/]+$/, '');
