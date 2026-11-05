@@ -305,6 +305,13 @@ describe('Cargo dependency scanner', () => {
       });
     });
 
+    it('CLOCK-26 a locked release that was yanked, with nothing allowed to replace it, is reported', async () => {
+      const yanked = { itoa: [v('1.0.0'), v('1.0.15', { yanked: true })] };
+      const r = await scan({ manifests: loose, deps: [dep('itoa', '^1')], index: yanked, lock: [['itoa', '1.0.15']] });
+      expect(r.candidates).toEqual([]);
+      expect(r.skipped).toEqual([expect.objectContaining({ identifier: 'itoa', reason: 'locked-version-yanked', detail: '1.0.15' })]);
+    });
+
     it('CLOCK-02 without a Cargo.lock there is nothing to update in it', async () => {
       const r = await scan({ manifests: loose, deps: [dep('itoa', '^1')], index: itoa('1.0.15', '1.0.18') });
       expect(r.candidates).toEqual([]);
