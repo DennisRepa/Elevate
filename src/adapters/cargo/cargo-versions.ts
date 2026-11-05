@@ -14,6 +14,23 @@ export interface Selection {
 
 const rust = (v: string) => semver.coerce(v)?.version;
 
+/** Versions the project could take, newest first: not yanked, in the channel, and not needing a newer Rust than declared. */
+export function eligibleVersions(
+  versions: readonly IndexVersion[],
+  options: { channel: ReleaseChannel; rustVersion?: string },
+): string[] {
+  const project = options.rustVersion ? rust(options.rustVersion) : undefined;
+  return versions
+    .filter((v) => !v.yanked && semver.valid(v.version))
+    .filter((v) => options.channel === 'all' || semver.prerelease(v.version) === null)
+    .filter((v) => {
+      const needs = v.rustVersion ? rust(v.rustVersion) : undefined;
+      return !(project && needs && semver.gt(needs, project));
+    })
+    .map((v) => v.version)
+    .sort(semver.rcompare);
+}
+
 export function selectVersion(
   versions: readonly IndexVersion[],
   options: { channel: ReleaseChannel; rustVersion?: string },

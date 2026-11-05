@@ -102,7 +102,7 @@ export async function handleScanCommand(options: CliOptions, config: ElevateConf
     if (result.candidates.length === 0) console.log('   ✨ All dependencies are up to date.');
     for (const u of result.candidates) {
       const diffTag = `[${u.diff.toUpperCase()}]`.padEnd(9);
-      const actionTag = u.action === 'align' ? '[ALIGN] ' : u.origin.kind === 'private' ? '[INTERNAL] ' : '';
+      const actionTag = u.action === 'align' ? '[ALIGN] ' : u.action === 'lock' ? '[LOCK] ' : u.origin.kind === 'private' ? '[INTERNAL] ' : '';
       const preBadge = u.isPreRelease ? `[${u.preReleaseTag || 'PRE'}] ` : '';
       const where = u.declaration && u.declaration.displayPath !== modulePom
         ? `  (in ${u.declaration.displayPath}${u.declaration.propertyName ? ` \${${u.declaration.propertyName}}` : ''})`
