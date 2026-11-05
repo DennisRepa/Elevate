@@ -22,5 +22,7 @@ export function describeSkip(skipped: SkippedDependency): string {
       return `workspace package that pnpm does not link unless it is declared with the workspace: protocol${detail}`;
     case 'catalog-unresolved':
       return `catalog entry could not be resolved${detail}`;
+    case 'incompatible-rust-version':
+      return `newer versions need a newer Rust than the project's rust-version${detail}`;
   }
 }

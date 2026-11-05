@@ -62,3 +62,82 @@ jobs:
 
       - name: pnpm integration tests
         run: npx vitest run --config vitest.integration.config.ts test/integration/pnpm.test.ts test/integration/pnpm-cli.test.ts
+
+  # Real cargo against crates.io: scan, update with verification, byte-exact rollback, workspace inheritance.
+  # The hosted runners ship a Rust toolchain; the version is printed so a failure can be matched to it.
+  integration-cargo:
+    name: Cargo integration (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Show the Rust toolchain
+        run: cargo --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cargo integration tests
+        run: npx vitest run --config vitest.integration.config.ts test/integration/cargo-workflow.test.ts
+
+  # The release workflow builds the standalone binaries on the latest Node (node --build-sea).
+  # Build one here as well, so a broken binary shows up in the pull request and not at the release tag,
+  # and start it against a small Rust project to prove that it works without Node installed alongside.
+  binary:
+    name: Standalone binary (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: elevate-linux-x64
+          - os: windows-latest
+            binary: elevate-windows-x64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 'latest'
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build standalone binary
+        run: npm run build:binary
+
+      - name: Run the binary against a Rust project
+        shell: bash
+        run: |
+          mkdir -p smoke/src
+          cd smoke
+          printf '[package]\nname = "smoke"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nitoa = "0.4"\n' > Cargo.toml
+          echo 'fn main() {}' > src/main.rs
+          BIN="../dist/${{ matrix.binary }}"
+
+          "$BIN" modules --ecosystem=cargo --json | tee modules.json
+          grep -q '"smoke"' modules.json
+
+          # scan exits with 1 when updates are found; anything above that is a failure
+          set +e
+          "$BIN" scan --ecosystem=cargo --json > scan.json
+          code=$?
+          set -e
+          cat scan.json
+          [ "$code" -le 1 ] || exit "$code"
+          grep -q '"identifier": "itoa"' scan.json

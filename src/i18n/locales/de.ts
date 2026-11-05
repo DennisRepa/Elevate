@@ -43,6 +43,7 @@ export const de: Translations = {
     prod: '(prod/compile)',
     align: '[Angleichen]',
     internal: '[Intern]',
+    shared: (count) => `[+${count} Crates]`,
   },
   status: {
     selectedOf: (selected, total) => `${selected} von ${total}`,
@@ -71,6 +72,7 @@ export const de: Translations = {
     hint: '[↑/↓/j/k] Navigieren  │  [Enter] Auswählen  │  [Esc] Abbrechen  │  [Backspace] Filter löschen',
     latestBadge: 'LATEST',
     currentBadge: 'AKTUELL',
+    alsoChanges: (names) => `Ändert auch: ${names.join(', ')}`,
     customBadge: 'MANUELL',
   },
   updating: {
@@ -99,6 +101,7 @@ export const de: Translations = {
     scanningChirps: ['*such*', 'prüfe...', 'oh, Updates?', 'einen Moment!'],
     updatingChirps: ['*schuft*', 'baue Code...', 'gleich fertig!', 'arbeite emsig...'],
     successChirps: ['hurra! 🎉', 'alles aktuell!', 'top gepflegt! 🪶', 'super gemacht!'],
+    cargoChirps: ['*krabbel* 🦀', 'cargo check läuft durch!', 'Borrow Checker nickt!', 'furchtlose Updates!'],
     mavenChirps: ['*kaffee schlürf* ☕', 'Spring Boot läuft!', 'Java 25 rockt!', 'sauber gebaut!'],
   },
   splash: {

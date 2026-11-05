@@ -21,7 +21,11 @@ export const PackageRow: React.FC<Props> = ({ item, isFocused, t }) => {
       <Text color={theme.colors.success}>{t.badges.patch}</Text>
     );
 
-  const displayName = item.coordinate.identifier;
+  // Where the dependency applies (build, cfg(unix)) and who shares its declaration go into the
+  // name column, so the row keeps its width. A long name is cut, the hints are not.
+  const shared = item.sharedWith && item.sharedWith.length > 0 ? ` ${t.badges.shared(item.sharedWith.length)}` : '';
+  const label = item.qualifier ? `${item.coordinate.identifier} (${item.qualifier})` : item.coordinate.identifier;
+  const displayName = label.slice(0, 42 - shared.length) + shared;
   const isDevOrTest = item.scope === 'dev' || item.scope === 'test';
   const property = item.declaration?.kind === 'property' ? `\${${item.declaration.propertyName}}` : undefined;
 

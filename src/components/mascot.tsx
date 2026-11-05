@@ -85,7 +85,9 @@ export const ChickenMascot: React.FC<Props> = ({ state = 'idle', t, ecosystem = 
     const chirpsPool =
       ecosystem === 'maven'
         ? [...t.mascot.idleChirps, ...t.mascot.mavenChirps]
-        : t.mascot.idleChirps;
+        : ecosystem === 'cargo'
+          ? [...t.mascot.idleChirps, ...t.mascot.cargoChirps]
+          : t.mascot.idleChirps;
 
     currentChirp = chirpsPool[chirpIndex % chirpsPool.length]!;
   }

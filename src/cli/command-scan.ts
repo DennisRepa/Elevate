@@ -11,7 +11,7 @@ import type { CliOptions } from './parser.js';
 import type { ElevateConfig } from '../config.js';
 import type { ProjectModule, ScanResult } from '../domain/models.js';
 import { EcosystemFactory } from '../domain/ecosystem-factory.js';
-import { candidateToJson, createScanContext, findModule, scanModules } from '../application/scan.js';
+import { candidateToJson, createScanContext, discoverModules, findModule, scanModules } from '../application/scan.js';
 import { describeSkip } from '../application/describe.js';
 
 export async function handleScanCommand(options: CliOptions, config: ElevateConfig): Promise<number> {
@@ -19,7 +19,8 @@ export async function handleScanCommand(options: CliOptions, config: ElevateConf
   const channel = options.channel ?? config.channel ?? 'stable';
   const strategy = EcosystemFactory.getStrategy(ecosystem);
 
-  const modules = await strategy.discovery.discover(config.rootDir);
+  const { modules, diagnostics } = await discoverModules(strategy, config.rootDir);
+  for (const problem of diagnostics) console.error(`⚠️  ${problem}`);
   if (modules.length === 0) {
     if (options.json) {
       console.log(JSON.stringify({ error: `No ${strategy.displayName} modules found.`, ecosystem }, null, 2));

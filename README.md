@@ -37,6 +37,7 @@
 | **Node.js** (JS / TS) | `npm` | `package.json` | Configured npm registry (`.npmrc`) | Root & npm Workspaces (glob patterns) | `npm install` + `npm ls` | ✅ Supported |
 | **Node.js** (JS / TS) | `pnpm` (9 – 12) | `package.json` | Registry configured for pnpm (`.npmrc`) | Root & `pnpm-workspace.yaml` (patterns, catalogs) | `pnpm install` + `pnpm install --frozen-lockfile --lockfile-only` | ✅ Supported |
 | **Java** (JVM) | `Maven` (`mvnw` / `mvn`) | `pom.xml` | Repositories & mirrors from Maven's own settings | Root POM, reactor & parent POMs | `mvn test-compile -amd` | ✅ Supported |
+| **Rust** | `Cargo` | `Cargo.toml` | Registry of the project's Cargo configuration (sparse index, mirrors via source replacement) | Workspaces, path dependencies, `workspace = true` inheritance | `cargo check --all-targets` | ✅ Supported |
 
 > **Planned:** Support for Python (`pip`, `poetry`, `uv`), `yarn`, and `Gradle` is on the roadmap.
 
@@ -124,7 +125,7 @@ node dist/cli.js
 
 | Key | Action |
 | :--- | :--- |
-| **`E`** | Switch Ecosystem (`npm` ⇄ `Maven`) |
+| **`E`** | Switch Ecosystem (`npm` → `Maven` → `Cargo`) |
 | **`W`** | Open Module / Workspace Selector |
 | **`V`** | Pick Specific Version (Interactive search & filter modal) |
 | **`L`** | Toggle Language (`English` ⇄ `Deutsch`) |
@@ -214,6 +215,7 @@ Detailed parameter references are available in [`docs/en.md`](./docs/en.md) and 
 * **pnpm specifics.** `catalog:` entries are updated where they are declared, in `pnpm-workspace.yaml`. A plain range on a workspace module (`^1.0.0`) is listed as *not linked* and never rewritten to `workspace:`, because pnpm resolves it from the registry. Elevate does not read pnpm settings such as `minimumReleaseAge` or the approval of build scripts, so pnpm may refuse an offered version; the update is then rolled back with pnpm's message. pnpm 8 and older, Windows and `shared-workspace-lockfile=false` are not covered.
 * **Broken configuration stops Elevate.** An `elevate.config.json` that is not valid JSON, not an object, or whose `internalScopes` is not a list of strings is reported and Elevate exits with code `1`, because ignoring it would switch off the protection of internal packages. Without any configuration file Elevate works with defaults.
 * **Dependency sections.** `dependencies`, `devDependencies` and `optionalDependencies` are covered. `peerDependencies` and `overrides` are never changed.
+* **Cargo.** Requirements are raised keeping their precision, so a loose `"1"` only shows breaking updates; wildcard and compound requirements (`*`, `>=1.2, <2`), git and external path dependencies are left alone. Lock-file-only updates, registries that need authentication and `[patch]` sections are not covered; a vendored or local-registry source replacement is refused rather than bypassed.
 * **Maven.** Maven plugin versions and declarations inside `<profiles>` are not offered. Dependencies whose version is declared outside the repository (an external parent or BOM) are listed as *not offered* with the reason.
 
 ---

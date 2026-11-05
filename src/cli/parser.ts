@@ -5,9 +5,14 @@
  * using Node.js native `node:util.parseArgs` conventions.
  */
 
+import type { Ecosystem } from '../domain/models.js';
+import { EcosystemFactory } from '../domain/ecosystem-factory.js';
+
+const isEcosystem = (v: string | undefined): v is Ecosystem => EcosystemFactory.getAvailableEcosystems().includes(v as Ecosystem);
+
 export interface CliOptions {
   subcommand?: 'modules' | 'scan' | 'versions' | 'update' | 'init' | 'mcp' | 'help';
-  ecosystem?: 'npm' | 'maven';
+  ecosystem?: Ecosystem;
   module?: string;
   channel?: 'stable' | 'all';
   packages?: string[];
@@ -68,10 +73,10 @@ export function parseCliArgs(args: string[]): CliOptions {
       result.help = true;
     } else if (arg.startsWith('--ecosystem=')) {
       const val = arg.split('=')[1];
-      if (val === 'npm' || val === 'maven') result.ecosystem = val;
+      if (isEcosystem(val)) result.ecosystem = val;
     } else if (arg === '-e' || arg === '--ecosystem') {
       const val = remaining[++i];
-      if (val === 'npm' || val === 'maven') result.ecosystem = val;
+      if (isEcosystem(val)) result.ecosystem = val;
     } else if (arg.startsWith('--module=')) {
       result.module = arg.split('=')[1];
     } else if (arg === '-m' || arg === '--module') {
@@ -116,7 +121,7 @@ SUBCOMMANDS:
   mcp                                   Start stdio-based MCP server
 
 FLAGS:
-  -e, --ecosystem <npm|maven>          Target ecosystem (default: npm)
+  -e, --ecosystem <npm|maven|cargo>          Target ecosystem (default: npm)
   -m, --module <name|path>             Target module ID or relative path (default: root)
   -c, --channel <stable|all>           Release channel (default: stable)
   -p, --packages <pkg1,pkg2@1.2.3>     Comma-separated list of packages to update

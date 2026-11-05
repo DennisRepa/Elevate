@@ -90,6 +90,17 @@ Every update runs as one workflow: **snapshot ➔ write & install ➔ integrity 
 * **npm:** `npm ls` at the repository root (missing, invalid or unmet dependencies across all workspaces), unless `postUpdateScript` is set.
 * **Maven:** `mvn test-compile -pl <changed modules> -amd` in the reactor — the changed modules *and every module depending on them*. A change to the aggregator POM rebuilds the whole reactor.
 
+### Cargo (Rust)
+
+Elevate runs `cargo` from the `PATH` (`cargo metadata --no-deps`, `cargo update`, `cargo check`); without it Cargo scans fail with a clear message. Every `Cargo.toml` outside `target`, `node_modules`, `vendor`, hidden folders and `src` is examined, and each workspace is read once.
+
+* **Where versions are written.** Elevate edits only the version text of the declaring literal — in the crate's own `Cargo.toml`, or in `[workspace.dependencies]` of the root for `workspace = true`. Comments, quotes and line endings stay. `cargo add` is not used because it replaces `workspace = true`.
+* **Requirements.** A bare `1.2.3` means `^1.2.3`. The new requirement keeps the operator and the number of components: `"1"` → `"2"`, `"1.0.100"` → `"1.0.229"`. `0.x` updates that change the first non-zero component count as *major*.
+* **Registries.** Versions are read from the sparse index named by your Cargo configuration (`.cargo/config.toml` in parent directories, `$CARGO_HOME`, `include`). A crate from an alternative registry is looked up only there. A source replacement Elevate cannot read (directory, local registry, git) stops the lookup. Registries that require authentication are reported as failed lookups.
+* **Proxy.** Registry lookups use Node's `fetch`, which ignores `HTTP_PROXY`/`HTTPS_PROXY` unless the process is started with `NODE_USE_ENV_PROXY=1` (checked with Node 22.23). Behind a proxy run `NODE_USE_ENV_PROXY=1 elevate …`; a failed lookup says so. Cargo's own `http.proxy` and `http.cainfo` settings are not read; use `NODE_EXTRA_CA_CERTS` for a private CA.
+* **Lock file.** After the edit `Cargo.lock` is refreshed with `cargo update -p`, and pinned with `--precise` when you picked an older version. A repository without `Cargo.lock` gets none.
+* **Verification.** `cargo check --all-targets` for the changed crates and the crates depending on them; a changed workspace root checks the whole workspace. Build scripts of the new versions run during the check.
+
 ### Requirements for Maven
 
 Elevate uses the project's Maven Wrapper (`mvnw` / `mvnw.cmd`) when present, otherwise `mvn` on the `PATH`. Without either, Maven scans fail with a clear message instead of guessing. Plugin versions are pinned for reproducible results (`maven-help-plugin` 3.5.2, `versions-maven-plugin` 2.22.0) and can be replaced per repository with `mavenPlugins` in `elevate.config.json` (see [Maven plugin versions](#maven-plugin-versions)). Scans write temporary files only to `target/.elevate-*` and remove them afterwards.

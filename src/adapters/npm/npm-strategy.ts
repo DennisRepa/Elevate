@@ -4,6 +4,7 @@
 
 import type { EcosystemStrategy, TabLabels } from '../../domain/ecosystem-strategy.js';
 import type { Ecosystem } from '../../domain/models.js';
+import { npmVersionPolicy } from '../../domain/version-policy.js';
 import { detectPackageManager } from './npm-package-manager.js';
 import { NpmModuleDiscoveryAdapter } from './npm-discovery.js';
 import { NpmRegistryAdapter } from './npm-registry.js';
@@ -24,6 +25,7 @@ export class NpmEcosystemStrategy implements EcosystemStrategy {
   }
   readonly icon = '📦';
   readonly manifestFile = 'package.json';
+  readonly versioning = npmVersionPolicy;
 
   readonly discovery = new NpmModuleDiscoveryAdapter();
   readonly registry = new NpmRegistryAdapter();

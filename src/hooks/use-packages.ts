@@ -8,7 +8,6 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import semver from 'semver';
 import type {
   UpdateCandidate,
   Tab,
@@ -16,11 +15,10 @@ import type {
   ProjectModule,
   ReleaseChannel,
   SkippedDependency,
-  VersionDiff,
 } from '../domain/models.js';
 import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
 import type { ElevateConfig } from '../config.js';
-import { cleanJavaVersion, diffVersions, extractPreReleaseTag, isPreReleaseVersion, rangePrefix } from '../domain/versions.js';
+import { extractPreReleaseTag, isPreReleaseVersion } from '../domain/versions.js';
 import { createScanContext, scanModule } from '../application/scan.js';
 
 export function usePackages(
@@ -107,16 +105,13 @@ export function usePackages(
       prev.map((c) => {
         if (c.coordinate.identifier !== identifier) return c;
 
-        const target = c.coordinate.ecosystem === 'maven' ? cleanJavaVersion(chosenVersion) : semver.valid(chosenVersion);
-        let diff: VersionDiff = 'minor';
-        if (c.currentClean && target && semver.valid(c.currentClean)) {
-          diff = semver.eq(c.currentClean, target) ? 'patch' : diffVersions(c.currentClean, target);
-        }
+        const policy = strategy.versioning;
+        const diff = c.currentClean ? policy.diff(c.currentClean, chosenVersion) : 'minor';
 
         const isPre = isPreReleaseVersion(chosenVersion);
         return {
           ...c,
-          newRange: c.coordinate.ecosystem === 'npm' ? `${rangePrefix(c.currentRange)}${chosenVersion}` : chosenVersion,
+          newRange: policy.rewrite(c.currentRange, chosenVersion),
           latest: chosenVersion,
           diff,
           selected: true,
@@ -126,7 +121,7 @@ export function usePackages(
         };
       }),
     );
-  }, []);
+  }, [strategy]);
 
   const switchTab = useCallback((tab: Tab) => {
     setActiveTab(tab);
