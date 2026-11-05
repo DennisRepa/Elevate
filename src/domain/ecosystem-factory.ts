@@ -1,7 +1,7 @@
 /**
  * 🪶 Elevate — Ecosystem Factory (Factory Pattern)
  *
- * Creates and caches the ecosystem strategies for Node/npm, Java/Maven and Rust/Cargo.
+ * Creates and caches the ecosystem strategies for Node/npm, Java/Maven, Rust/Cargo and Java/Gradle.
  */
 
 import type { Ecosystem } from './models.js';
@@ -9,6 +9,7 @@ import type { EcosystemStrategy } from './ecosystem-strategy.js';
 import { NpmEcosystemStrategy } from '../adapters/npm/npm-strategy.js';
 import { CargoEcosystemStrategy } from '../adapters/cargo/cargo-strategy.js';
 import { MavenEcosystemStrategy } from '../adapters/maven/maven-strategy.js';
+import { GradleEcosystemStrategy } from '../adapters/gradle/gradle-strategy.js';
 import type { MavenPluginVersions } from '../adapters/maven/maven-resolution.js';
 
 /** Settings the strategies are created with. */
@@ -38,6 +39,8 @@ export class EcosystemFactory {
         strategy = new MavenEcosystemStrategy(this.settings.mavenPlugins);
       } else if (ecosystem === 'cargo') {
         strategy = new CargoEcosystemStrategy();
+      } else if (ecosystem === 'gradle') {
+        strategy = new GradleEcosystemStrategy();
       } else {
         strategy = new NpmEcosystemStrategy();
       }
@@ -46,9 +49,12 @@ export class EcosystemFactory {
     return strategy;
   }
 
-  /** All supported ecosystems. */
+  /**
+   * All supported ecosystems. The order is the order the repository root is
+   * asked in and the order the dashboard cycles through.
+   */
   static getAvailableEcosystems(): Ecosystem[] {
-    return ['npm', 'maven', 'cargo'];
+    return ['npm', 'maven', 'cargo', 'gradle'];
   }
 
   /** The ecosystem after `current`, for the dashboard's ecosystem switch. */

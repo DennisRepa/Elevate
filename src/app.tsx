@@ -1,7 +1,7 @@
 /**
  * 🪶 Elevate — main component (app shell)
  *
- * Orchestrates the ecosystem strategies (npm / Maven), views, hooks,
+ * Orchestrates the ecosystem strategies (npm / Maven / Gradle), views, hooks,
  * i18n, theme and keyboard navigation.
  */
 
@@ -40,7 +40,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
   const [modalIndex, setModalIndex] = useState(0);
   const [versionPickerCandidate, setVersionPickerCandidate] = useState<UpdateCandidate | null>(null);
 
-  // 1. Ecosystem selection (npm → Maven → Cargo via strategy pattern)
+  // 1. Ecosystem selection (npm → Maven → Cargo → Gradle via strategy pattern)
   const [ecosystem, setEcosystem] = useState<Ecosystem>('npm');
   const strategy = useMemo(() => EcosystemFactory.getStrategy(ecosystem), [ecosystem]);
 

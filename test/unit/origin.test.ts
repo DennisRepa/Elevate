@@ -62,3 +62,12 @@ describe('classifyOrigin', () => {
     expect(classifyOrigin('react', 'npm', { workspace, internalScopes: ['@acme'] }).kind).toBe('public');
   });
 });
+
+describe('buildWorkspaceIndex', () => {
+  it('keys a module by its coordinates when it has them, by its id otherwise', () => {
+    const gradle: ProjectModule = { ...module(':lib'), ecosystem: 'gradle', coordinates: 'com.acme:lib' };
+    const index = buildWorkspaceIndex([gradle, module('@acme/core')]);
+    expect([...index.keys()]).toEqual(['com.acme:lib', '@acme/core']);
+    expect(index.get('com.acme:lib')).toBe(gradle);
+  });
+});

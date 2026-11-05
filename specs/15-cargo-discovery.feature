@@ -7,12 +7,13 @@ Feature: Cargo workspaces and modules
   Rule: Cargo is a first-class ecosystem
 
     Scenario: CECO-01 Cargo is registered next to npm and Maven
-      Then the available ecosystems are "npm", "maven" and "cargo"
+      Then the available ecosystems begin with "npm", "maven" and "cargo"
       And the Cargo strategy has the manifest file "Cargo.toml" and the icon "🦀"
       And asking for the strategy twice returns the same instance
 
     Scenario: CECO-02 The ecosystem switch rotates through all ecosystems
-      Then the ecosystem after "npm" is "maven", after "maven" is "cargo" and after "cargo" is "npm"
+      Then the ecosystem after "npm" is "maven" and after "maven" is "cargo"
+      And every ecosystem is reached once, and the last one is followed by "npm"
 
     Scenario: CECO-03 Cargo uses its own version rules
       Then rewriting "1.0.100" for the target "1.0.229" gives "1.0.229"

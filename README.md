@@ -17,13 +17,13 @@
 
 ## ✨ Key Features
 
-* **Polyglot Monorepo Support:** Manages frontend workspaces (`package.json`) and backend services (`pom.xml`) in a single tool.
+* **Polyglot Monorepo Support:** Manages frontend workspaces (`package.json`) and backend services (`pom.xml`, `build.gradle`, `Cargo.toml`) in a single tool.
 * **Targeted Version Selection:** Interactive modal to search, filter, and pick any published version (`[V]`), not just `latest`.
-* **Runtime Ecosystem Switching:** Switch instantly between Node.js and Maven modules (`[E]`).
+* **Runtime Ecosystem Switching:** Switch instantly between Node.js, Maven, Cargo and Gradle modules (`[E]`).
 * **Release Channels:** Configurable channels (`stable` vs. `all`) with automatic filtering of pre-releases (alpha, beta, rc, snapshot).
 * **Internal Dependencies:** Aligns workspace modules to their local versions and looks up internal packages (`@my-org/*`, `com.mycompany.*`) only in private registries — never on a public one.
 * **Rollback on Failure:** If installation, the workspace link check or verification fails, every touched file is restored.
-* **Safety Guardrails & Verification:** Automatic post-update verification (`npm install`, `mvn test-compile`) with rollback safety and major-version warnings.
+* **Safety Guardrails & Verification:** Automatic post-update verification (`npm install`, `mvn test-compile`, `gradle testClasses`) with rollback safety and major-version warnings.
 * **Agentic & CI/CD Ready:** Full headless CLI (`--json`) and native Model Context Protocol (MCP) server for integration with autonomous AI coding agents.
 * **Bilingual Interface:** Instant language toggle between English and German (`[L]`).
 * **Modular Architecture:** Decoupled domain core and ports/adapters (hexagonal architecture).
@@ -38,8 +38,9 @@
 | **Node.js** (JS / TS) | `pnpm` (9 – 12) | `package.json` | Registry configured for pnpm (`.npmrc`) | Root & `pnpm-workspace.yaml` (patterns, catalogs) | `pnpm install` + `pnpm install --frozen-lockfile --lockfile-only` | ✅ Supported |
 | **Java** (JVM) | `Maven` (`mvnw` / `mvn`) | `pom.xml` | Repositories & mirrors from Maven's own settings | Root POM, reactor & parent POMs | `mvn test-compile -amd` | ✅ Supported |
 | **Rust** | `Cargo` | `Cargo.toml` | Registry of the project's Cargo configuration (sparse index, mirrors via source replacement) | Workspaces, path dependencies, `workspace = true` inheritance | `cargo check --all-targets` | ✅ Supported |
+| **Java** (JVM) | `Gradle` (`gradlew` / `gradle`) | `build.gradle`, `build.gradle.kts`, `settings.gradle(.kts)`, `gradle/libs.versions.toml` | Repositories the build itself declares, with its mirrors and credentials | Projects of the settings, included builds & `buildSrc` | `gradle testClasses` of the affected projects | ✅ Supported |
 
-> **Planned:** Support for Python (`pip`, `poetry`, `uv`), `yarn`, and `Gradle` is on the roadmap.
+> **Planned:** Support for Python (`pip`, `poetry`, `uv`) and `yarn` is on the roadmap.
 
 ---
 
@@ -125,7 +126,7 @@ node dist/cli.js
 
 | Key | Action |
 | :--- | :--- |
-| **`E`** | Switch Ecosystem (`npm` → `Maven` → `Cargo`) |
+| **`E`** | Switch Ecosystem (`npm` → `Maven` → `Cargo` → `Gradle`) |
 | **`W`** | Open Module / Workspace Selector |
 | **`V`** | Pick Specific Version (Interactive search & filter modal) |
 | **`L`** | Toggle Language (`English` ⇄ `Deutsch`) |
@@ -154,6 +155,7 @@ elevate scan --ecosystem=npm --channel=stable --json
 
 # Query complete published version history for a package
 elevate versions chalk --json
+elevate versions org.slf4j:slf4j-api --ecosystem=gradle --json
 
 # Dry-run update simulation without modifying files
 elevate update --module=apps/web --packages=chalk@5.6.2 --dry-run --json
@@ -217,6 +219,7 @@ Detailed parameter references are available in [`docs/en.md`](./docs/en.md) and 
 * **Dependency sections.** `dependencies`, `devDependencies` and `optionalDependencies` are covered. `peerDependencies` and `overrides` are never changed.
 * **Cargo.** Requirements are raised keeping their precision, so a loose `"1"` only shows breaking updates; wildcard and compound requirements (`*`, `>=1.2, <2`), git and external path dependencies are left alone. Lock-file-only updates (`[Lock]`) are offered for direct dependencies when `Cargo.lock` is behind a requirement that already allows a newer release; transitive crates are not, and a crate with a pending manifest update shows only that candidate. Registries that need authentication and `[patch]` sections are not covered; a vendored or local-registry source replacement is refused rather than bypassed.
 * **Maven.** Maven plugin versions and declarations inside `<profiles>` are not offered. Dependencies whose version is declared outside the repository (an external parent or BOM) are listed as *not offered* with the reason.
+* **Gradle.** Gradle 7.6 and newer, Groovy and Kotlin DSL, run with the build's own wrapper or `gradle` on the `PATH` (a JDK is needed). A version is changed where its text is found: literals in the build scripts, `gradle.properties`, `ext` and local variables, `gradle/libs.versions.toml` and the `plugins` block. Dynamic and rich versions (`1.+`, `[1.0,2.0)`, `strictly`, `reject`, `prefer`), computed versions and versions that only a convention plugin in `buildSrc` or an included build, an `apply from:` script or another catalog defines are listed as *not offered*. The Gradle Wrapper itself is never updated. `gradle/verification-metadata.xml` is never regenerated, so a build that uses it rolls such an update back. Dependency locks are refreshed for the root build only; an update in an included build or `buildSrc` that has lock files is refused. Android and Kotlin Multiplatform builds are not verified. Windows is not verified.
 
 ---
 

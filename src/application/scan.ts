@@ -3,7 +3,13 @@
  */
 
 import type { ElevateConfig } from '../config.js';
-import type { ProjectModule, ReleaseChannel, ScanResult, UpdateCandidate } from '../domain/models.js';
+import type {
+  ProjectModule,
+  ReleaseChannel,
+  ScanResult,
+  UpdateCandidate,
+  VersionDeclaration,
+} from '../domain/models.js';
 import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
 import type { ScanContext } from '../domain/ports.js';
 import { buildWorkspaceIndex } from '../domain/origin.js';
@@ -82,6 +88,17 @@ export async function scanModules(
   return results;
 }
 
+/** JSON shape of the place a version is written. */
+function declarationToJson(declaration: VersionDeclaration) {
+  return {
+    file: declaration.displayPath,
+    kind: declaration.kind,
+    property: declaration.propertyName,
+    catalog: declaration.catalogName,
+    entry: declaration.entry,
+  };
+}
+
 /** JSON shape of a candidate for CLI and MCP output. */
 export function candidateToJson(u: UpdateCandidate) {
   return {
@@ -96,14 +113,9 @@ export function candidateToJson(u: UpdateCandidate) {
     scope: u.scope,
     isPreRelease: u.isPreRelease ?? false,
     preReleaseTag: u.preReleaseTag,
-    declaredIn: u.declaration
-      ? {
-          file: u.declaration.displayPath,
-          kind: u.declaration.kind,
-          property: u.declaration.propertyName,
-          catalog: u.declaration.catalogName,
-        }
-      : undefined,
+    declaredIn: u.declaration ? declarationToJson(u.declaration) : undefined,
+    alsoDeclaredIn:
+      u.declarations && u.declarations.length > 1 ? u.declarations.slice(1).map(declarationToJson) : undefined,
     sharedWith: u.sharedWith,
   };
 }

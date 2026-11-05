@@ -121,7 +121,7 @@ SUBCOMMANDS:
   mcp                                   Start stdio-based MCP server
 
 FLAGS:
-  -e, --ecosystem <npm|maven|cargo>          Target ecosystem (default: npm)
+  -e, --ecosystem <name>               Target ecosystem: npm, maven, cargo or gradle (default: npm)
   -m, --module <name|path>             Target module ID or relative path (default: root)
   -c, --channel <stable|all>           Release channel (default: stable)
   -p, --packages <pkg1,pkg2@1.2.3>     Comma-separated list of packages to update
@@ -137,6 +137,7 @@ FLAGS:
 EXAMPLES:
   elevate scan --json
   elevate scan --ecosystem=maven --channel=stable --all-modules --json
+  elevate scan --ecosystem=gradle --json
   elevate versions chalk --ecosystem=npm --json
   elevate update --module=apps/e2e-cockpit --packages=chalk@5.6.2 --json
   elevate update --ecosystem=npm --all --allow-major --dry-run

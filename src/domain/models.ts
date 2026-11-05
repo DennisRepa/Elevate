@@ -5,7 +5,7 @@
  */
 
 /** Supported ecosystems / package managers. */
-export type Ecosystem = 'npm' | 'maven' | 'cargo';
+export type Ecosystem = 'npm' | 'maven' | 'cargo' | 'gradle';
 
 /** A module (npm workspace, Maven project) inside the repository. */
 export interface ProjectModule {
@@ -31,6 +31,14 @@ export interface ProjectModule {
    * module. Verification runs from there so dependent modules are rebuilt.
    */
   aggregatorDir?: string;
+  /** Gradle only: absolute directory of the Gradle build this project belongs to. */
+  buildDir?: string;
+  /** Gradle only: absolute directory of the root build of the run. */
+  buildRoot?: string;
+  /** Gradle only: kind of the build the project belongs to. */
+  buildKind?: 'root' | 'included' | 'buildSrc';
+  /** Gradle only: `group:name` of the project, the key of the workspace index. */
+  coordinates?: string;
 }
 
 /** Value object: the coordinates of a dependency. */
@@ -78,13 +86,23 @@ export type VersionDiff = 'patch' | 'minor' | 'major';
 export interface VersionDeclaration {
   /** Absolute path of the manifest that contains the literal. */
   file: string;
-  kind: 'dependency' | 'dependency-management' | 'parent' | 'property' | 'catalog' | 'lockfile';
-  /** Name of the pnpm catalog holding the version (kind `catalog`); `default` for the default catalog. */
+  kind: 'dependency' | 'dependency-management' | 'parent' | 'property' | 'catalog' | 'lockfile' | 'plugin';
+  /** Name of the catalog holding the version (kind `catalog`): the pnpm catalog or `libs` for Gradle; `default` for pnpm's default catalog. */
   catalogName?: string;
+  /** Gradle catalog entry holding the version, e.g. `versions.guava` or `libraries.lib` (kind `catalog`). */
+  entry?: string;
   /** Name of the property holding the version (kind `property`). */
   propertyName?: string;
   /** Path of `file` relative to the repository root, for display. */
   displayPath: string;
+  /**
+   * Gradle: offsets of the version text in `file` as it was scanned (the end is
+   * exclusive). The update replaces exactly this text and refuses a file in
+   * which it no longer reads the scanned version. `before` and `after` are the
+   * characters directly around that text at scan time, so that `1.0` becoming
+   * `1.0.1` is noticed as a change.
+   */
+  range?: { start: number; end: number; before?: string; after?: string; text?: string };
 }
 
 /** Entity: a dependency for which a newer or aligned version is available. */
@@ -114,6 +132,12 @@ export interface UpdateCandidate {
   action: 'update' | 'align' | 'lock';
   /** Where the version is written (Maven); undefined means the module manifest. */
   declaration?: VersionDeclaration;
+  /**
+   * Gradle: every place the version is written, `declaration` being the first.
+   * A coordinate that is declared several times (in several configurations, as
+   * a constraint, in a catalog) is one candidate and is changed everywhere.
+   */
+  declarations?: VersionDeclaration[];
   /**
    * Other dependencies sharing the same declaration (e.g. one version property).
    * For a pnpm catalog entry it lists the ids of the modules that use the entry.
@@ -154,7 +178,9 @@ export type SkipReason =
   /** Cargo: the newest version needs a newer Rust than the project declares. */
   | 'incompatible-rust-version'
   /** Cargo: Cargo.lock pins a release that was yanked, and no allowed release can replace it. */
-  | 'locked-version-yanked';
+  | 'locked-version-yanked'
+  /** The version is a selector or carries a constraint (dynamic version, strictly, reject, prefer). */
+  | 'version-constraint';
 
 /** A dependency that was deliberately not offered, with the reason. */
 export interface SkippedDependency {
