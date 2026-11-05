@@ -25,6 +25,10 @@ export interface EcosystemStrategy {
   readonly ecosystem: Ecosystem;
   /** Display name. */
   readonly displayName: string;
+  /** Display name for a repository, when it depends on the package manager in use. */
+  displayNameFor?(rootDir: string): string;
+  /** The package manager driving the repository (Node.js ecosystem only). */
+  packageManagerFor?(rootDir: string): string;
   /** Icon / emoji. */
   readonly icon: string;
   /** File name of the module manifest (e.g. package.json, pom.xml). */

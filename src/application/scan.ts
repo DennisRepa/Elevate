@@ -88,7 +88,12 @@ export function candidateToJson(u: UpdateCandidate) {
     isPreRelease: u.isPreRelease ?? false,
     preReleaseTag: u.preReleaseTag,
     declaredIn: u.declaration
-      ? { file: u.declaration.displayPath, kind: u.declaration.kind, property: u.declaration.propertyName }
+      ? {
+          file: u.declaration.displayPath,
+          kind: u.declaration.kind,
+          property: u.declaration.propertyName,
+          catalog: u.declaration.catalogName,
+        }
       : undefined,
     sharedWith: u.sharedWith,
   };

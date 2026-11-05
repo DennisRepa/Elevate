@@ -23,6 +23,7 @@
     "updater",
     "monorepo",
     "npm",
+    "pnpm",
     "maven",
     "mcp",
     "agentic"
@@ -69,7 +70,8 @@
     "react": "^19.0.0",
     "saxes": "^6.0.0",
     "semver": "^7.6.3",
-    "tsx": "^4.19.3"
+    "tsx": "^4.19.3",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

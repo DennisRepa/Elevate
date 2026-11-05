@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Upgrade notes
+
+* **npm:** repositories managed by pnpm are no longer refused; Elevate now drives pnpm there. Only Yarn and Bun repositories are refused. The refusal message changed to "Elevate supports npm and pnpm for Node.js projects; using either here would create a lockfile next to <name>'s."
+* **scan:** two new skip reasons, `not-linked` and `catalog-unresolved`, appear in `skipped` of the CLI and MCP output.
+
+### Features
+
+* **pnpm:** pnpm 9 to 12 is supported as a package manager of the Node.js ecosystem. Modules come from `pnpm-workspace.yaml`, the repository root is found from any directory of a pnpm workspace, and the module listing, the MCP tool `elevate_discover_modules` and the dashboard name the package manager.
+* **pnpm:** updates run `pnpm install --no-frozen-lockfile` (safe with `CI` set), roll back every touched file on failure and restore with `pnpm install --frozen-lockfile`. The default verification is `pnpm install --frozen-lockfile --lockfile-only`; the vulnerability summary comes from `pnpm audit --json`.
+* **pnpm:** `workspace:` ranges are aligned and `pnpm-lock.yaml` proves afterwards that they are linked. A plain range on a workspace module is listed as `not-linked`.
+* **pnpm:** `catalog:` dependencies are offered with the catalog's range and updated in `pnpm-workspace.yaml`, keeping comments, quoting and line endings.
+
 ## 1.3.0 (2026-10-06)
 
 Elevate now understands how the modules of a repository depend on each other. Internal dependencies are aligned instead of hidden and are never looked up on public registries, Elevate works from any directory of a repository, and it refuses to act where it would do harm.

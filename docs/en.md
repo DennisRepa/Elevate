@@ -19,8 +19,8 @@
 
 ## ✨ Features & Highlights
 
-1. **🌐 Polyglot Monorepo Support (npm & Maven):**
-   * **Node / npm:** Resolves workspaces exactly like npm (glob patterns such as `packages/**` included), calculates SemVer diffs, updates `package.json` (`dependencies`, `devDependencies`, `optionalDependencies`), runs `npm install` and checks the lockfile. Repositories managed by pnpm, Yarn or Bun are refused.
+1. **🌐 Polyglot Monorepo Support (npm, pnpm & Maven):**
+   * **Node / npm:** Resolves workspaces exactly like npm (glob patterns such as `packages/**` included), calculates SemVer diffs, updates `package.json` (`dependencies`, `devDependencies`, `optionalDependencies`), runs `npm install` and checks the lockfile. **Node / pnpm** (9 – 12) works the same way for pnpm repositories: workspaces from `pnpm-workspace.yaml`, the `workspace:` protocol, `catalog:` entries, `pnpm install` and a lockfile check. Repositories managed by Yarn or Bun are refused.
    * **Java / Maven:** Finds every `pom.xml` (including the root POM), lets Maven compute the effective POM, looks up newer versions through the build's own repositories (mirrors, Nexus/Artifactory, credentials from `settings.xml`) and verifies the affected modules with `mvn test-compile`.
    * **Runtime Switch:** Press **`[E]`** anytime to switch between frontend and backend modules.
 
@@ -68,6 +68,7 @@ The registry URL alone is deliberately **not** used to decide the origin: in mos
 ### Aligning workspace modules
 
 * **npm:** If a dependency's range does not include the local version of a workspace package, npm does **not** link the workspace — it installs a package with the same name from the registry. Elevate offers to align the range (e.g. `^1.0.0` ➔ `^2.0.0`). After `npm install` it checks `package-lock.json`: every aligned dependency must be `"link": true`, otherwise the update is rolled back. Ranges that npm always links (`*`, `file:`, `workspace:`) are left alone.
+* **pnpm:** pnpm links a workspace package only when the dependency is written with the `workspace:` protocol; a plain range such as `^1.0.0` is resolved from the registry, even if the local version satisfies it. Elevate therefore aligns `workspace:^1.2.0` ➔ `workspace:^2.0.0` (the protocol and the prefix are kept; `workspace:*`, `workspace:^`, `workspace:~` and `workspace:../lib` need nothing) and lists a plain range on a module as *not linked* without ever looking the name up in a registry or rewriting it. After `pnpm install` it reads the `importers` section of `pnpm-lock.yaml` (`lockfileVersion` 9.x): every aligned dependency must have a `version` starting with `link:`, otherwise the update is rolled back.
 * **Maven:** If a module depends on a module of the *same reactor* with a different version (e.g. `1.0.0` while the module is at `1.1.0-SNAPSHOT`), Elevate offers to align it. `${project.version}` references need no alignment.
 * The release channel does not apply to alignment: the local version — including `-SNAPSHOT` — is the target, because modules of one repository are built and tested together.
 
@@ -103,9 +104,31 @@ Elevate works the same wherever in the repository it is started. The root is fou
 
 The search never leaves the version-control checkout: it stops at the nearest directory that contains a `.git` entry, so a stray `package.json` or `pom.xml` somewhere above the repository is never mistaken for its root. Manifests that cannot be parsed are skipped.
 
-### Package manager guard (npm)
+### Package manager guard (Yarn and Bun)
 
-Elevate's Node.js support drives npm. In a repository managed by pnpm, Yarn or Bun it refuses to scan or change the npm modules, because `npm install` would create a second lockfile and a `node_modules` layout the project does not use. The package manager is recognised from the repository root, in this order: the `packageManager` field of `package.json` (`npm@`, `pnpm@`, `yarn@`, `bun@`), then `package-lock.json` / `npm-shrinkwrap.json`, `pnpm-lock.yaml` / `pnpm-workspace.yaml`, `yarn.lock` / `.yarnrc.yml`, `bun.lock` / `bun.lockb`; without any of them the repository is treated as npm. If Elevate is started inside a workspace package, the search continues in the parent directories up to the checkout (the nearest directory with a `.git` entry); without a checkout only the directory itself is examined. The refusal names the manager and the file that decided. Maven modules in the same repository, read-only version queries (`elevate versions`) and a custom `postUpdateScript` are not affected.
+Elevate's Node.js support drives npm and pnpm. In a repository managed by Yarn or Bun it refuses to scan or change the modules, because either tool would create a second lockfile and a `node_modules` layout the project does not use. The package manager is recognised from the repository root, in this order: the `packageManager` field of `package.json` (`npm@`, `pnpm@`, `yarn@`, `bun@`), then `package-lock.json` / `npm-shrinkwrap.json`, `pnpm-lock.yaml` / `pnpm-workspace.yaml`, `yarn.lock` / `.yarnrc.yml`, `bun.lock` / `bun.lockb`; without any of them the repository is treated as npm. If Elevate is started inside a workspace package, the search continues in the parent directories up to the checkout (the nearest directory with a `.git` entry); without a checkout only the directory itself is examined. The refusal names the manager and the file that decided. Maven modules in the same repository, read-only version queries (`elevate versions`) and a custom `postUpdateScript` are not affected.
+
+### pnpm workspaces and catalogs
+
+* **Workspace file.** In a pnpm repository the `packages` list of `pnpm-workspace.yaml` (not the `workspaces` field of `package.json`) defines the modules; `*`, `**` and `!` patterns work as for npm, the root is always a module and `node_modules` never contains modules. A `pnpm-workspace.yaml` also marks the repository root, even without a `packages` list. A file that is not valid YAML counts as absent.
+* **Catalogs.** A `catalog:` / `catalog:default` / `catalog:<name>` dependency is offered with the range from the catalog and the new range is written to that entry of `pnpm-workspace.yaml` (comments, quotes, notation and line endings stay; the module's `package.json` is not rewritten). A reference that cannot be resolved is listed as `catalog-unresolved`. The JSON output says where the version is declared: `"declaredIn": {"file": "pnpm-workspace.yaml", "kind": "catalog", "catalog": "default"}`.
+* **Overrides** (`pnpm.overrides`, `overrides` in `pnpm-workspace.yaml`, `resolutions`) and `peerDependencies` are never changed.
+
+### Commands Elevate runs for pnpm
+
+All in the repository root; Elevate uses the `pnpm` on the `PATH` (the `packageManager` field and Corepack decide the version). `pnpm --version` runs first and, if it fails, the operation stops with an explanation before anything is touched.
+
+| Purpose | Command | Timeout |
+| :--- | :--- | :--- |
+| Is pnpm usable? | `pnpm --version` | 15 s |
+| Install after writing the ranges | `pnpm install --no-frozen-lockfile` | 10 min |
+| Restore after a rollback | `pnpm install --frozen-lockfile` | 10 min |
+| Default verification (lockfile consistency, replaces `npm ls`) | `pnpm install --frozen-lockfile --lockfile-only` | 10 min |
+| Vulnerability summary | `pnpm audit --json` | 60 s |
+| Versions of a package | `pnpm view <name> <field> --json` | 15 s |
+| Registry configuration | `pnpm config list --json` | 15 s |
+
+`--no-frozen-lockfile` is passed explicitly because with `CI` set `pnpm install` is implicitly frozen and would fail on the manifest Elevate just changed. `pnpm ls` is not used for verification: it exits with 0 for missing dependencies. The vulnerability summary comes from `pnpm audit --json` (`pnpm install` prints none); an audit without a result is a warning, never a reason to roll back. Elevate does not read pnpm settings such as `minimumReleaseAge` or build-script approval; if pnpm refuses because of them, the update is rolled back with pnpm's own message.
 
 ### Dependency sections (npm)
 
@@ -153,7 +176,12 @@ src/
 │   │   ├── npm-registry.ts      #     npm view queries & dist-tags
 │   │   ├── npm-scanner.ts       #     Origins, alignment, SemVer diffs
 │   │   ├── npm-lockfile.ts      #     Workspace link check in package-lock.json
-│   │   ├── npm-package-manager.ts #   Package manager detection & guard
+│   │   ├── npm-package-manager.ts #   Package manager detection, guard & pnpm check
+│   │   ├── npm-commands.ts      #     Commands per package manager (npm / pnpm)
+│   │   ├── npm-protocols.ts     #     workspace: / catalog: range protocols
+│   │   ├── pnpm-workspace.ts    #     pnpm-workspace.yaml: packages, catalogs, in-place edit
+│   │   ├── pnpm-lockfile.ts     #     Workspace link check in pnpm-lock.yaml
+│   │   ├── pnpm-audit.ts        #     pnpm audit --json summary
 │   │   ├── npm-updater.ts       #     Updates package.json & runs npm install
 │   │   ├── npm-verifier.ts      #     npm ls / custom verification
 │   │   └── npm-strategy.ts      #     NpmEcosystemStrategy
