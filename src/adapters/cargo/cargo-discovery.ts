@@ -87,7 +87,7 @@ export class CargoModuleDiscoveryAdapter implements ModuleDiscoveryPort {
             ecosystem: 'cargo',
             isRoot: relPath === '',
             version: pkg.version,
-            aggregatorDir: metadata.workspace_root,
+            aggregatorDir: resolve(metadata.workspace_root),
           });
         }
       } catch (err) {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const process_ = vi.hoisted(() => ({ runCommand: vi.fn() }));
 vi.mock('../../src/adapters/shared/process.js', async (importOriginal) => ({
@@ -58,7 +58,7 @@ describe('Cargo module discovery', () => {
       ['b', 'crates/b', '0.2.0', false, 'cargo'],
       ['c', 'tools/c', '1.0.0', false, 'cargo'],
     ]);
-    expect(modules.every((m) => m.aggregatorDir === root)).toBe(true);
+    expect(modules.every((m) => resolve(m.aggregatorDir!) === resolve(root))).toBe(true);
   });
 
   it('CDISC-02 a package at the repository root is the Root module', async () => {

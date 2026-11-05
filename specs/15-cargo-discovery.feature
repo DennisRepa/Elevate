@@ -102,6 +102,13 @@ Feature: Cargo workspaces and modules
       When the modules are discovered
       Then discovery fails with a CargoUnavailableError instead of returning an empty list
 
+    Scenario: CDISC-17 A Windows shell that cannot find cargo is reported as a missing cargo
+      Given cmd.exe answers a cargo command with exit code 1 and a message in the user's language
+      And "cargo --version" fails as well
+      When cargo is run
+      Then it fails with a CargoUnavailableError
+      But a failure that carries Cargo's own "error" prefix, or one after which "cargo --version" works, is returned as it is
+
     Scenario: CDISC-12 Diagnostics start empty on every run
       Given a run that reported a problem
       When the next run has none
