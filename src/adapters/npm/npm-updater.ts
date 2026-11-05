@@ -12,14 +12,39 @@ import { InstallError } from '../../domain/ports.js';
 import type { ApplyOutcome, DependencyUpdaterPort } from '../../domain/ports.js';
 import type { ProjectModule, UpdateCandidate } from '../../domain/models.js';
 import { runCommand, tail } from '../shared/process.js';
-import { UnsupportedPackageManagerError, assertNpmManaged, detectPackageManager } from './npm-package-manager.js';
+import type { RunResult } from '../shared/process.js';
+import {
+  PackageManagerNotFoundError,
+  UnsupportedPackageManagerError,
+  detectPackageManager,
+  prepareSupportedPackageManager,
+} from './npm-package-manager.js';
 import { DEPENDENCY_SECTIONS } from './npm-scanner.js';
 import { findUnlinkedWorkspaceDependencies, readLockfile } from './npm-lockfile.js';
+import { commands } from './npm-commands.js';
+import type { Driver } from './npm-commands.js';
+import { AUDIT_TIMEOUT_MS, parsePnpmAudit, unavailable } from './pnpm-audit.js';
+import type { AuditSummary } from './pnpm-audit.js';
+import { findUnlinkedPnpmDependencies, readPnpmLockfile } from './pnpm-lockfile.js';
+import { setCatalogRange } from './pnpm-workspace.js';
 
 const INSTALL_TIMEOUT_MS = 10 * 60_000;
 
+/** pnpm prints errors on stdout (9 to 11) or stderr (12), so both are quoted; npm's go to stderr. */
+function failureDetails(manager: Driver, result: RunResult): string {
+  return manager === 'pnpm' ? tail(`${result.stdout}\n${result.stderr}`) : tail(result.stderr || result.stdout);
+}
+
 export class NpmUpdaterAdapter implements DependencyUpdaterPort {
   affectedFiles(module: ProjectModule, rootDir: string): string[] {
+    if (detectPackageManager(rootDir).name === 'pnpm') {
+      return [
+        join(module.path, 'package.json'),
+        join(rootDir, 'package.json'),
+        join(rootDir, 'pnpm-lock.yaml'),
+        join(rootDir, 'pnpm-workspace.yaml'),
+      ];
+    }
     return [
       join(module.path, 'package.json'),
       join(rootDir, 'package.json'),
@@ -34,44 +59,72 @@ export class NpmUpdaterAdapter implements DependencyUpdaterPort {
     updates: UpdateCandidate[],
     onProgress: (stepMessage: string) => void,
   ): Promise<ApplyOutcome> {
+    let manager: Driver;
     try {
-      assertNpmManaged(rootDir);
+      manager = await prepareSupportedPackageManager(rootDir);
     } catch (err) {
-      if (err instanceof UnsupportedPackageManagerError) throw new InstallError(err.message);
+      if (err instanceof UnsupportedPackageManagerError || err instanceof PackageManagerNotFoundError) {
+        throw new InstallError(err.message);
+      }
       throw err;
     }
 
-    const pkgPath = join(module.path, 'package.json');
-    let source: string;
-    let pkg: any;
-    try {
-      source = readFileSync(pkgPath, 'utf8');
-      pkg = JSON.parse(source);
-    } catch {
-      throw new InstallError(`Cannot read package.json in ${module.path}.`);
-    }
+    // A catalog entry is written where it is declared; the module's package.json keeps its `catalog:` reference.
+    const catalogUpdates = updates.filter((u) => u.declaration?.kind === 'catalog');
+    const manifestUpdates = updates.filter((u) => u.declaration?.kind !== 'catalog');
 
-    onProgress('Writing new versions to package.json…');
-    for (const item of updates) {
-      const name = item.coordinate.artifact;
-      // Every section that declares the name receives the range.
-      for (const section of DEPENDENCY_SECTIONS) {
-        if (typeof pkg[section]?.[name] === 'string') pkg[section][name] = item.newRange;
+    const pkgPath = join(module.path, 'package.json');
+    let manifest: { source: string; pkg: any } | undefined;
+    if (manifestUpdates.length > 0 || catalogUpdates.length === 0) {
+      try {
+        const source = readFileSync(pkgPath, 'utf8');
+        manifest = { source, pkg: JSON.parse(source) };
+      } catch {
+        throw new InstallError(`Cannot read package.json in ${module.path}.`);
       }
     }
-    writeFileSync(pkgPath, serializeLike(source, pkg), 'utf8');
 
-    onProgress('Running npm install…');
-    const install = await runCommand('npm', ['install'], { cwd: rootDir, timeoutMs: INSTALL_TIMEOUT_MS });
-    if (install.exitCode !== 0) {
-      const reason = install.timedOut ? 'npm install timed out' : 'npm install failed';
-      throw new InstallError(reason, tail(install.stderr || install.stdout));
+    if (manifest) {
+      onProgress('Writing new versions to package.json…');
+      for (const item of manifestUpdates) {
+        const name = item.coordinate.artifact;
+        // Every section that declares the name receives the range.
+        for (const section of DEPENDENCY_SECTIONS) {
+          if (typeof manifest.pkg[section]?.[name] === 'string') manifest.pkg[section][name] = item.newRange;
+        }
+      }
+      writeFileSync(pkgPath, serializeLike(manifest.source, manifest.pkg), 'utf8');
     }
 
-    onProgress('Checking workspace links in package-lock.json…');
-    const integrityViolations = verifyAlignedLinks(module, rootDir, updates);
+    if (catalogUpdates.length > 0) {
+      onProgress('Writing new versions to pnpm-workspace.yaml…');
+      writeCatalogRanges(catalogUpdates);
+    }
 
-    const combined = `${install.stdout}\n${install.stderr}`;
+    const install = commands.install(manager);
+    onProgress(`Running ${manager} install…`);
+    const result = await runCommand(install.command, install.args, { cwd: rootDir, timeoutMs: INSTALL_TIMEOUT_MS });
+    if (result.exitCode !== 0) {
+      const reason = result.timedOut ? `${manager} install timed out` : `${manager} install failed`;
+      throw new InstallError(reason, failureDetails(manager, result));
+    }
+
+    const lockName = manager === 'pnpm' ? 'pnpm-lock.yaml' : 'package-lock.json';
+    onProgress(`Checking workspace links in ${lockName}…`);
+    const integrityViolations = verifyAlignedLinks(manager, module, rootDir, updates);
+
+    if (manager === 'pnpm') {
+      const audit = integrityViolations.length > 0 ? undefined : await runPnpmAudit(rootDir);
+      return {
+        updatedCount: updates.length,
+        auditMessage: audit?.message ?? '',
+        auditSeverity: audit?.severity ?? 'clean',
+        fundingMessage: undefined,
+        integrityViolations,
+      };
+    }
+
+    const combined = `${result.stdout}\n${result.stderr}`;
     const audit = parseAuditSummary(combined);
     const fundingMatch = combined.match(/(\d+ packages? (?:is|are) looking for funding)/i);
 
@@ -85,14 +138,46 @@ export class NpmUpdaterAdapter implements DependencyUpdaterPort {
   }
 
   async resync(_module: ProjectModule, rootDir: string, onProgress: (stepMessage: string) => void): Promise<void> {
-    // Nothing was installed in a repository npm does not manage, so there is nothing to restore.
-    if (detectPackageManager(rootDir).name !== 'npm') return;
+    // Nothing was installed in a repository Elevate does not drive, so there is nothing to restore.
+    const name = detectPackageManager(rootDir).name;
+    if (name !== 'npm' && name !== 'pnpm') return;
 
-    onProgress('Restoring node_modules (npm install)…');
-    const result = await runCommand('npm', ['install'], { cwd: rootDir, timeoutMs: INSTALL_TIMEOUT_MS });
+    const restore = commands.restore(name);
+    onProgress(`Restoring node_modules (${name} install)…`);
+    const result = await runCommand(restore.command, restore.args, { cwd: rootDir, timeoutMs: INSTALL_TIMEOUT_MS });
     if (result.exitCode !== 0) {
-      throw new InstallError('npm install failed while restoring the previous state', tail(result.stderr));
+      throw new InstallError(
+        `${name} install failed while restoring the previous state`,
+        name === 'pnpm' ? failureDetails(name, result) : tail(result.stderr),
+      );
     }
+  }
+}
+
+/** Replaces each catalog entry in the file that declares it, once per file. */
+function writeCatalogRanges(updates: UpdateCandidate[]): void {
+  const sources = new Map<string, string>();
+  for (const item of updates) {
+    const declaration = item.declaration!;
+    try {
+      let source = sources.get(declaration.file) ?? readFileSync(declaration.file, 'utf8');
+      source = setCatalogRange(source, declaration.catalogName ?? 'default', item.coordinate.artifact, item.newRange);
+      sources.set(declaration.file, source);
+    } catch (err) {
+      throw new InstallError(err instanceof Error ? err.message : `Cannot update ${declaration.displayPath}.`);
+    }
+  }
+  for (const [file, source] of sources) writeFileSync(file, source, 'utf8');
+}
+
+/** The vulnerability summary of pnpm; an audit that gives no result is a warning, never a failure. */
+async function runPnpmAudit(rootDir: string): Promise<AuditSummary> {
+  try {
+    const result = await runCommand('pnpm', ['audit', '--json'], { cwd: rootDir, timeoutMs: AUDIT_TIMEOUT_MS });
+    if (result.timedOut) return unavailable(`pnpm audit timed out after ${AUDIT_TIMEOUT_MS / 1000} seconds`);
+    return parsePnpmAudit(result.stdout);
+  } catch {
+    return unavailable('pnpm audit returned no result');
   }
 }
 
@@ -118,14 +203,20 @@ export function parseAuditSummary(output: string): { message: string; severity: 
 }
 
 /** Every aligned workspace dependency must now be linked to its workspace. */
-function verifyAlignedLinks(module: ProjectModule, rootDir: string, updates: UpdateCandidate[]): string[] {
+function verifyAlignedLinks(
+  manager: Driver,
+  module: ProjectModule,
+  rootDir: string,
+  updates: UpdateCandidate[],
+): string[] {
   const aligned = updates.filter((u) => u.origin.kind === 'workspace').map((u) => u.coordinate.identifier);
   if (aligned.length === 0) return [];
 
+  const moduleRelPath = relative(rootDir, module.path).replace(/\\/g, '/');
+  if (manager === 'pnpm') return findUnlinkedPnpmDependencies(readPnpmLockfile(rootDir), moduleRelPath, aligned);
+
   const lockfile = readLockfile(rootDir);
   if (!lockfile) return ['package-lock.json is missing; workspace links cannot be verified'];
-
-  const moduleRelPath = relative(rootDir, module.path).replace(/\\/g, '/');
   return findUnlinkedWorkspaceDependencies(lockfile, moduleRelPath, aligned);
 }
 

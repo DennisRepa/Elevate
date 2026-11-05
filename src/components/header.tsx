@@ -12,6 +12,8 @@ interface Props {
   strategy: EcosystemStrategy;
   nextStrategyName: string;
   channel: ReleaseChannel;
+  /** Repository root, so the label can name the package manager. */
+  rootDir?: string;
 }
 
 /** Header with active ecosystem, release channel, language and author. */
@@ -22,6 +24,7 @@ export const Header: React.FC<Props> = ({
   strategy,
   nextStrategyName,
   channel,
+  rootDir,
 }) => (
   <Box
     borderStyle="round"
@@ -40,7 +43,7 @@ export const Header: React.FC<Props> = ({
       <Box marginLeft={2}>
         <Text color={theme.colors.muted}>│ </Text>
         <Text color={theme.colors.brandLight} bold>
-          {strategy.icon} {strategy.displayName}
+          {strategy.icon} {(rootDir && strategy.displayNameFor?.(rootDir)) || strategy.displayName}
         </Text>
         <Text color={theme.colors.muted}> [{channel}] </Text>
         <Text color={theme.colors.muted}>

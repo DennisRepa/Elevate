@@ -76,7 +76,9 @@ export type VersionDiff = 'patch' | 'minor' | 'major';
 export interface VersionDeclaration {
   /** Absolute path of the manifest that contains the literal. */
   file: string;
-  kind: 'dependency' | 'dependency-management' | 'parent' | 'property';
+  kind: 'dependency' | 'dependency-management' | 'parent' | 'property' | 'catalog';
+  /** Name of the pnpm catalog holding the version (kind `catalog`); `default` for the default catalog. */
+  catalogName?: string;
   /** Name of the property holding the version (kind `property`). */
   propertyName?: string;
   /** Path of `file` relative to the repository root, for display. */
@@ -108,7 +110,10 @@ export interface UpdateCandidate {
   action: 'update' | 'align';
   /** Where the version is written (Maven); undefined means the module manifest. */
   declaration?: VersionDeclaration;
-  /** Other dependencies sharing the same declaration (e.g. one version property). */
+  /**
+   * Other dependencies sharing the same declaration (e.g. one version property).
+   * For a pnpm catalog entry it lists the ids of the modules that use the entry.
+   */
   sharedWith?: string[];
   /**
    * Versions a user may pick from, newest first, when the version source
@@ -135,7 +140,11 @@ export type SkipReason =
   /** The declared version does not match the resolved one (profiles, CLI overrides). */
   | 'declaration-mismatch'
   /** The name is not a valid package identifier and was not passed to any tool. */
-  | 'invalid-name';
+  | 'invalid-name'
+  /** pnpm resolves a plain range on a workspace module from the registry, not from the workspace. */
+  | 'not-linked'
+  /** A `catalog:` reference that the pnpm-workspace.yaml cannot resolve. */
+  | 'catalog-unresolved';
 
 /** A dependency that was deliberately not offered, with the reason. */
 export interface SkippedDependency {

@@ -18,5 +18,9 @@ export function describeSkip(skipped: SkippedDependency): string {
       return `version location is ambiguous${detail}`;
     case 'invalid-name':
       return 'not a valid package name';
+    case 'not-linked':
+      return `workspace package that pnpm does not link unless it is declared with the workspace: protocol${detail}`;
+    case 'catalog-unresolved':
+      return `catalog entry could not be resolved${detail}`;
   }
 }

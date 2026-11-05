@@ -186,8 +186,10 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
       // ── Tool 1: elevate_discover_modules ──
       if (name === 'elevate_discover_modules') {
         const modules = await strategy.discovery.discover(config.rootDir);
+        const packageManager = strategy.packageManagerFor?.(config.rootDir);
         return reply({
           ecosystem,
+          ...(packageManager ? { packageManager } : {}),
           count: modules.length,
           modules: modules.map((m) => ({
             id: m.id,
