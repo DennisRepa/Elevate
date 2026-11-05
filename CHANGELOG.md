@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0](https://github.com/DennisRepa/Elevate/compare/v1.3.0...v1.4.0) (2026-11-05)
+
+
+### Features
+
+* **npm:** release pnpm support from develop ([5417763](https://github.com/DennisRepa/Elevate/commit/5417763180f9a013241d70661a87870f2ad02956))
+* **npm:** support pnpm repositories ([0d6208d](https://github.com/DennisRepa/Elevate/commit/0d6208dda1ee14cd6f18a7176372b854c8d0fea9))
+* **npm:** support pnpm repositories ([b005c9e](https://github.com/DennisRepa/Elevate/commit/b005c9ee0cdacb62ac2d8b4058bd6aac7be3b673))
+
+
+### Documentation
+
+* describe pnpm support ([892a914](https://github.com/DennisRepa/Elevate/commit/892a91457b3ecc811d49f1f1d37763b6f5d46635))
+* specify pnpm support ([cbe93be](https://github.com/DennisRepa/Elevate/commit/cbe93be69b69a46b1972db40fa84a78a9ae67e8d))
+
 ## 1.3.0 (2026-10-06)
 
 Elevate now understands how the modules of a repository depend on each other. Internal dependencies are aligned instead of hidden and are never looked up on public registries, Elevate works from any directory of a repository, and it refuses to act where it would do harm.
