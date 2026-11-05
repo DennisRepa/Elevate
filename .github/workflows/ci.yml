@@ -37,12 +37,13 @@ jobs:
         run: npm run build
 
   integration-pnpm:
-    name: pnpm integration (pnpm ${{ matrix.pnpm }})
+    name: pnpm integration (pnpm ${{ matrix.pnpm }}, ${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         pnpm: ['9', 'latest']
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
