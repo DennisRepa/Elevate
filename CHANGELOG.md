@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0](https://github.com/DennisRepa/Elevate/compare/v1.4.0...v1.5.0) (2026-11-05)
+
+
+### Features
+
+* **cargo:** add Rust/Cargo as an ecosystem ([#20](https://github.com/DennisRepa/Elevate/issues/20)) ([9217c25](https://github.com/DennisRepa/Elevate/commit/9217c25d55144a9bdb5d9337b9243e9a19b312e0))
+* **cargo:** release Cargo support from develop ([1af7416](https://github.com/DennisRepa/Elevate/commit/1af7416e0e2c14e8c9e14d66f34563de5dd82a9f))
+
 ## [1.4.0](https://github.com/DennisRepa/Elevate/compare/v1.3.0...v1.4.0) (2026-11-05)
 
 
