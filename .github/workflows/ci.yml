@@ -63,6 +63,34 @@ jobs:
       - name: pnpm integration tests
         run: npx vitest run --config vitest.integration.config.ts test/integration/pnpm.test.ts test/integration/pnpm-cli.test.ts
 
+  # Real cargo against crates.io: scan, update with verification, byte-exact rollback, workspace inheritance.
+  # The hosted runners ship a Rust toolchain; the version is printed so a failure can be matched to it.
+  integration-cargo:
+    name: Cargo integration (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Show the Rust toolchain
+        run: cargo --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cargo integration tests
+        run: npx vitest run --config vitest.integration.config.ts test/integration/cargo-workflow.test.ts
+
   # The release workflow builds the standalone binaries on the latest Node (node --build-sea).
   # Build one here as well, so a broken binary shows up in the pull request and not at the release tag,
   # and start it against a small Rust project to prove that it works without Node installed alongside.
