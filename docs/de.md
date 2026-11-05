@@ -7,10 +7,10 @@
 
 ## 🌟 Übersicht
 
-**Elevate** ist ein interaktives Terminal-Dashboard (TUI) zur sicheren, selektiven und transparenten Aktualisierung von Abhängigkeiten in **Polyglot-Monorepos** (Node/npm & Java/Maven) sowie Einzelprojekten.
+**Elevate** ist ein interaktives Terminal-Dashboard (TUI) zur sicheren, selektiven und transparenten Aktualisierung von Abhängigkeiten in **Polyglot-Monorepos** (Node/npm, Java/Maven, Rust/Cargo & Java/Gradle) sowie Einzelprojekten.
 
 * **Feder-Symbolik (`🪶`) & Orange-Brand (`#FF8800`):** Leicht, modern und übersichtlich im Terminal.
-* **Polyglot-Fähig:** Unterstützt gleichzeitig Frontend-Projekte (`package.json` mit npm Workspaces) und Backend-Projekte (`pom.xml` mit Maven).
+* **Polyglot-Fähig:** Unterstützt gleichzeitig Frontend-Projekte (`package.json` mit npm Workspaces) und Backend-Projekte (`pom.xml` mit Maven, `build.gradle` mit Gradle, `Cargo.toml` mit Cargo).
 * **Release Channels:** Filtert Vorabversionen (Beta, RC, Alpha, Milestone, Snapshot) standardmäßig heraus und schlägt ausschließlich produktionsreife Releases vor.
 * **Animiertes Begleiter-Hühnchen („Pip“ 🐣):** Begleitet den Entwickler dezent im Terminal und reagiert auf Aktionen.
 * **Bilinguales i18n:** Jederzeit umschaltbar zwischen Deutsch und Englisch via Taste **`[L]`**.
@@ -19,11 +19,12 @@
 
 ## ✨ Features & Highlights
 
-1. **🌐 Polyglot Monorepo Support (npm, pnpm & Maven):**
+1. **🌐 Polyglot Monorepo Support (npm, pnpm, Maven, Cargo & Gradle):**
    * **Node / npm:** Löst Workspaces genau wie npm auf (inklusive Glob-Mustern wie `packages/**`), berechnet SemVer-Diffs, aktualisiert `package.json`, führt `npm install` aus und prüft das Lockfile.
    * **Node / pnpm** (9 – 12): Dasselbe für pnpm-Repositories — Workspaces aus `pnpm-workspace.yaml`, das `workspace:`-Protokoll, `catalog:`-Einträge, `pnpm install` und eine Lockfile-Prüfung. Repositories mit Yarn oder Bun werden abgelehnt.
    * **Java / Maven:** Findet jede `pom.xml` (auch die Root-POM), lässt Maven die Effective POM berechnen, sucht neuere Versionen über die Repositories des Builds (Mirrors, Nexus/Artifactory, Zugangsdaten aus der `settings.xml`) und prüft die betroffenen Module mit `mvn test-compile`.
-   * **Live-Wechsel:** Ein Tastendruck auf **`[E]`** schaltet im laufenden Betrieb zwischen Frontend- und Backend-Modulen um.
+   * **Java / Gradle:** Findet die Builds des Repositories (Groovy- und Kotlin-DSL, Included Builds, `buildSrc`), fragt Gradle selbst, welche Abhängigkeiten gelten, sucht neuere Versionen über die Repositories des Builds (Mirrors, Nexus/Artifactory, Zugangsdaten), schreibt jede neue Version dorthin, wo ihr Text steht — Build-Skripte, `gradle.properties`, `ext`-Werte, der Version Catalog `gradle/libs.versions.toml`, der `plugins`-Block —, frischt Dependency Locks auf und prüft die betroffenen Projekte mit `testClasses`.
+   * **Live-Wechsel:** Ein Tastendruck auf **`[E]`** schaltet im laufenden Betrieb zwischen Node/npm-, Java/Maven-, Rust/Cargo- und Java/Gradle-Modulen um.
 
 2. **🔍 Version gezielt heraussuchen (`[V]`):**
    * Man muss nicht zwingend auf die `latest` Version aktualisieren: Taste **`[V]`** öffnet ein interaktives Such-Modal für das aktuell ausgewählte Paket.
@@ -71,12 +72,14 @@ Die URL der Registry allein entscheidet bewusst **nicht** über die Herkunft: In
 * **npm:** Schließt der Versionsbereich einer Abhängigkeit die lokale Version eines Workspace-Pakets nicht ein, verlinkt npm das Workspace **nicht**, sondern installiert ein gleichnamiges Paket aus der Registry. Elevate bietet an, den Bereich anzugleichen (z. B. `^1.0.0` ➔ `^2.0.0`). Nach `npm install` prüft es die `package-lock.json`: Jede angeglichene Abhängigkeit muss `"link": true` sein, sonst wird das Update zurückgenommen. Bereiche, die npm immer verlinkt (`*`, `file:`, `workspace:`), bleiben unberührt.
 * **pnpm:** pnpm verlinkt ein Workspace-Paket nur, wenn die Abhängigkeit mit dem `workspace:`-Protokoll geschrieben ist; ein einfacher Bereich wie `^1.0.0` wird aus der Registry aufgelöst — auch wenn die lokale Version ihn erfüllt. Elevate gleicht deshalb `workspace:^1.2.0` ➔ `workspace:^2.0.0` an (Protokoll und Präfix bleiben; `workspace:*`, `workspace:^`, `workspace:~` und `workspace:../lib` brauchen nichts) und führt einen einfachen Bereich auf ein Modul als *nicht verlinkt* (`not-linked`) auf, ohne den Namen je in einer Registry nachzuschlagen oder den Bereich umzuschreiben. Nach `pnpm install` liest es den Abschnitt `importers` der `pnpm-lock.yaml` (`lockfileVersion` 9.x): Jede angeglichene Abhängigkeit muss eine `version` mit `link:` haben, sonst wird das Update zurückgenommen.
 * **Maven:** Hängt ein Modul mit abweichender Version von einem Modul *desselben Reactors* ab (z. B. `1.0.0`, während das Modul auf `1.1.0-SNAPSHOT` steht), bietet Elevate das Angleichen an. Verweise über `${project.version}` brauchen kein Angleichen.
+* **Gradle:** Gradle ersetzt eine Abhängigkeit durch ein Projekt eines *Included Builds*, sobald Gruppe und Name passen, egal welche Version dasteht (`com.acme:lib:1.0.0` wird zum Projekt des Included Builds aufgelöst). Elevate gleicht eine solche Abhängigkeit an die Version des Projekts an und fragt den Namen nie in einem Repository ab; ein Included Build außerhalb des Repositories wird weder angeboten noch abgefragt. Ein Projekt desselben Builds wird nicht ersetzt, eine Abhängigkeit mit seinen Koordinaten ist also eine gewöhnliche.
 * Der Release Channel gilt beim Angleichen nicht: Ziel ist die lokale Version — auch `-SNAPSHOT` —, weil die Module eines Repositorys zusammen gebaut und getestet werden.
 
 ### Private Registries & Dependency Confusion
 
 * Interne Pakete werden nie in einer öffentlichen Registry abgefragt. Löst die Registry eines internen npm-Pakets zu `registry.npmjs.org` auf, wird es mit Begründung als *nicht angeboten* aufgeführt, statt abgefragt zu werden — genau diese Anfrage nach einem internen Namen nutzt ein Dependency-Confusion-Angriff aus.
-* npm-Abfragen verwenden die npm-Konfiguration (`npm config`), Maven-Abfragen Maven selbst — Mirrors, private Repositories und Zugangsdaten gelten ohne eigene Elevate-Konfiguration, und Elevate fasst nie Zugangsdaten an.
+* npm-Abfragen verwenden die npm-Konfiguration (`npm config`), Maven- und Gradle-Abfragen Maven bzw. Gradle selbst — Mirrors, private Repositories und Zugangsdaten gelten ohne eigene Elevate-Konfiguration, und Elevate fasst nie Zugangsdaten an.
+* **Gradle:** Für ein internes Paket (`internalScopes`; eine Plugin-ID zählt wie eine Gruppe) lässt Elevate Gradle dessen Gruppe beim Abfragen mit einem Content-Filter (`excludeGroupByRegex`) von jedem bekannten öffentlichen Repository fernhalten (`repo.maven.apache.org`, `repo1.maven.org`, `plugins.gradle.org`, `dl.google.com`, `jitpack.io` und einige mehr), sodass keine Anfrage nach dem internen Namen sie erreicht; ein Artifactory oder Nexus der Firma gilt als privat, auch wenn es Maven Central spiegelt. Hat der Build dafür nur öffentliche Repositories, wird die Abhängigkeit als *nicht angeboten* aufgeführt, statt abgefragt zu werden. Zugangsdaten in einer Repository-URL verlassen den Scan nie.
 
 ### Wohin Maven-Versionen geschrieben werden
 
@@ -90,6 +93,7 @@ Jedes Update läuft als ein Ablauf: **Snapshot ➔ Schreiben & Installieren ➔ 
 
 * **npm:** `npm ls` im Repository-Root (fehlende, ungültige oder unerfüllte Abhängigkeiten in allen Workspaces), sofern kein `postUpdateScript` gesetzt ist.
 * **Maven:** `mvn test-compile -pl <geänderte Module> -amd` im Reactor — die geänderten Module *und alle Module, die von ihnen abhängen*. Eine Änderung an der Aggregator-POM baut den ganzen Reactor.
+* **Gradle:** `testClasses` (sonst `assemble`) der Projekte, die die geänderten Dateien betreffen können: ein Projekt und jedes Projekt, das über `project(...)` von ihm abhängt; eine Änderung am Root-Projekt (Root-Skript, `gradle.properties`, Settings, `gradle/libs.versions.toml`) betrifft jedes Projekt. Tasks werden mit dem Projektpfad benannt (`:app:testClasses`), ein Modul eines Included Builds über den Namen seines Builds; ohne jeden Task läuft `help`, das den Build konfiguriert und `buildSrc` kompiliert.
 
 ### Cargo (Rust)
 
@@ -107,12 +111,71 @@ Elevate startet `cargo` aus dem `PATH` (`cargo metadata --no-deps`, `cargo updat
 
 Elevate verwendet den Maven Wrapper des Projekts (`mvnw` / `mvnw.cmd`), sonst `mvn` aus dem `PATH`. Fehlt beides, bricht der Maven-Scan mit einer klaren Meldung ab, statt zu raten. Die Plugin-Versionen sind für reproduzierbare Ergebnisse festgelegt (`maven-help-plugin` 3.5.2, `versions-maven-plugin` 2.22.0) und lassen sich je Repository mit `mavenPlugins` in der `elevate.config.json` ersetzen (siehe [Maven-Plugin-Versionen](#maven-plugin-versionen)). Scans schreiben temporäre Dateien nur nach `target/.elevate-*` und entfernen sie danach.
 
+### Wohin Gradle-Versionen geschrieben werden
+
+Eine Gradle-Build-Datei ist ein Programm, deshalb parst Elevate sie nicht. Es fragt Gradle, was gilt — die Abhängigkeiten jedes Projekts mit der Version, die sie nach Ausführung aller Skripte haben — und sucht dann in den Dateien des Builds nach dem Text, der diese Version trägt. Eine Fundstelle zählt nur, wenn dort genau die von Gradle gemeldete Version steht. Was sich nicht sicher finden lässt, wird nicht geraten, sondern mit Begründung als *nicht angeboten* aufgeführt.
+
+Der Text wird für die Abhängigkeiten eines Moduls (ein Projekt mit Build-Skript) in dieser Reihenfolge gesucht:
+
+1. String- und Map-Notation im Build-Skript des Moduls selbst;
+2. hat dieses Skript kein solches Literal, die Build-Skripte der Eltern-Projekte desselben Builds, das nächste zuerst (dort stehen `subprojects { }` und `allprojects { }`). Das erste Skript mit einem Treffer gewinnt, alle seine Treffer werden geschrieben;
+3. ist die Version ein Name (`"g:a:$v"`, `version: v`): die Definition dieses Namens — zuerst `gradle.properties` (die Datei des Moduls, dann die des Builds), dann `def`-, `ext`- und `extra`-Werte im Skript des Moduls und seiner Eltern. Ein Wert, den Gradle überschreibt, eine mehrdeutige Definition oder eine, die kein einzelnes String-Literal ist, wird *nicht angeboten*;
+4. markiert Gradle die Abhängigkeit als aus einem Version Catalog stammend: `gradle/libs.versions.toml` des Builds.
+
+Nicht durchsucht werden Convention-Plugins in `buildSrc` oder einem Included Build, mit `apply from:` eingebundene Skripte, Init-Skripte und die `gradle.properties` des Benutzers. Beide DSLs werden nach denselben Regeln gelesen — außerhalb von Kommentaren ist jedes String-Literal ein Kandidat:
+
+| Form | Groovy | Kotlin |
+| :--- | :--- | :--- |
+| String-Notation | `implementation 'g:a:1.0'`, `"g:a:1.0"`, `implementation('g:a:1.0')` | `implementation("g:a:1.0")` |
+| Classifier, Extension | `'g:a:1.0:sources@jar'` (nur `1.0` ändert sich) | `"g:a:1.0:sources@jar"` |
+| Map-Notation | `group: 'g', name: 'a', version: '1.0'` (beliebige Reihenfolge) | `group = "g", name = "a", version = "1.0"` |
+| Name als Version | `"g:a:$v"`, `"g:a:${v}"`, `version: v` | `"g:a:$v"`, `"g:a:${v}"`, `version = v` |
+| Plugin | `id 'x' version '1.0'`, `id('x') version('1.0')` | `id("x") version "1.0"`, `kotlin("jvm") version "1.9.20"` |
+
+Eine Koordinate, die ein Modul mehrfach deklariert (in mehreren Konfigurationen, als Constraint, in einem Catalog), ist ein Kandidat, und die neue Version wird an jede Deklaration geschrieben. Ihr Scope ist der erste aus *prod*, *test* und *plugin* unter ihnen; eine Konfiguration ist eine Test-Konfiguration, wenn eines der Wörter ihres camelCase-Namens `test` ist. Platforms, Enforced Platforms und die Mitglieder eines Bundles werden wie Bibliotheken angeboten, ebenso Constraints (`dependencies { constraints { } }`). Abhängigkeiten, die sich eine Versions-Property oder einen Catalog-Eintrag teilen, werden markiert, und widersprüchliche Ziele für einen gemeinsamen Text werden abgelehnt. Edits ersetzen nur den Versionstext und verweigern eine Datei, in der er oder die Zeichen daneben sich seit dem Scan geändert haben (`1.0` wird zu `1.0.1`).
+
+Als *nicht angeboten* aufgeführt wird:
+
+| Grund | Wann |
+| :--- | :--- |
+| `version-constraint` | die Version ist ein Selektor oder trägt eine Einschränkung: `1.+`, `latest.release`, `[1.0,2.0)`, `strictly`, `reject`, `prefer` — eine geänderte Zahl würde die Bedeutung ändern |
+| `declaration-mismatch` | der Text der Version lässt sich nicht sicher finden: berechnete Versionen, ein Convention-Plugin, ein `apply from:`-Skript, ein anderer Catalog als `gradle/libs.versions.toml`, ein von Gradle überschriebener Wert |
+| `invalid-name` | ein externes Modul ohne Gruppe |
+| `lookup-failed` | ein Repository-Fehler (Gradles eigene Worte, ohne Zugangsdaten) oder ein Build ohne deklariertes Repository |
+| `private-on-public-registry` | ein internes Paket, dessen Repositories alle öffentlich sind |
+
+### Version Catalogs
+
+Gradle liest `gradle/libs.versions.toml` eines Builds als Catalog `libs`. Elevate liest die Datei als TOML und ordnet eine Abhängigkeit einem Eintrag über die Koordinaten zu: der Eintrag, dessen `module` (oder `group` und `name`) die der Abhängigkeit sind und dessen wirksame Version nach Auflösung von `version.ref` genau die von Gradle gemeldete ist. Der Versionstext wird an Ort und Stelle geändert — der `[versions]`-Schlüssel bei `version.ref`, sonst der Eintrag selbst (`"g:a:1.0"`, `version = "1.0"`, `version = { require = "1.0" }`) —, und Kommentare, Abstände, Reihenfolge, Zeilenenden und eine Byte-Order-Mark bleiben. Plugin-Einträge (`[plugins]`) werden genauso behandelt, Bundles enthalten nur Aliase und ihre Mitglieder werden als Bibliotheken angeboten, und ein `[versions]`-Schlüssel, auf den mehrere Bibliotheken verweisen, wird als gemeinsam markiert und einmal geschrieben. Einträge mit `strictly`, `prefer` oder `reject` werden als *nicht angeboten* aufgeführt. Gelesen wird nur die Datei des Builds selbst: in den Settings mit `versionCatalogs { }` deklarierte Catalogs nicht, und ein Included Build hat seine eigene Datei.
+
+### Die Gradle-Läufe, die Elevate startet
+
+Elevate parst Build-Dateien nie, um zu erfahren, was gilt, und kontaktiert nie selbst ein Repository. Es startet das Gradle des Builds — den Wrapper, der dem Modul am nächsten liegt, aufwärts gesucht, aber nie oberhalb des Repository-Roots (`sh ./gradlew`, unter Windows `.\gradlew.bat`), sonst `gradle` aus dem `PATH` — im Verzeichnis des Gradle-Builds des Moduls:
+
+| Zweck | Befehl | Timeout |
+| :--- | :--- | :--- |
+| Build beschreiben (Projekte, deklarierte Abhängigkeiten, Repositories) | `-q -m --console=plain --no-configuration-cache -Delevate.mode=describe -Delevate.outDir=… -I <Skript> help` | 5 Min. |
+| neuere Versionen abfragen | dasselbe mit `-Delevate.mode=lookup -Delevate.plan=…` | 5 Min. |
+| Dependency Locks auffrischen | `-q --console=plain --no-configuration-cache :app:dependencies … --update-locks g:a,…` | 10 Min. |
+| verifizieren | `-q --console=plain :app:testClasses …` | 30 Min. |
+
+Die beiden Probe-Läufe nutzen ein kleines Groovy-Init-Skript, das Elevate mitbringt; die Antworten sind JSON-Dateien unter `.gradle/elevate-<id>/` des Builds, das nach dem Lauf in jedem Fall entfernt wird — die Standardausgabe trägt keine Antwort. `--no-configuration-cache` ist nötig: Bei aktiviertem Configuration Cache nutzt Gradle ihn im zweiten Lauf, und das Init-Skript würde nicht laufen. Weder `--daemon` noch `--no-daemon` wird übergeben: Die Läufe nutzen Gradle so, wie das Projekt es konfiguriert hat; ein kalter Daemon kostet einmal ein paar Sekunden, jeder weitere Lauf etwa eine. Ein Scan teilt sich je Gradle-Build einen Describe- und einen Lookup-Lauf, egal wie viele Module angefragt sind. Gradle älter als 7.6 wird mit einer Meldung abgelehnt.
+
+### Dependency Locking und Dependency Verification
+
+* **Locks.** Mit `dependencyLocking { lockAllConfigurations() }` liegt in jedem Projektverzeichnis eine `gradle.lockfile`, und eine angehobene Version lässt den Build scheitern, bis der Lock aufgefrischt ist. Nach dem Update einer Bibliothek frischt Elevate die Lock-Dateien des Root-Builds mit `gradle :app:dependencies :core:dependencies … --update-locks <Koordinaten>` auf — alle gemeinsam, denn ein veralteter Lock schlägt nicht immer fehl: Eine niedrigere deklarierte Version wird stillschweigend auf die gesperrte aufgelöst. Die Lock-Dateien gehören zum Snapshot, ein fehlgeschlagenes Auffrischen oder Verifizieren stellt sie wieder her. Locks von `buildSrc`, von Included Builds, vom `buildscript`-Classpath und von den Settings werden nicht aufgefrischt: Ein Update in einem Included Build oder in `buildSrc`, der Lock-Dateien hat, wird abgelehnt, bevor sich etwas ändert.
+* **Dependency Verification.** Ein Build mit `gradle/verification-metadata.xml` verweigert die Artefakte einer neuen Version. Elevate erzeugt diese Datei nie neu (`--write-verification-metadata` würde die Prüfsumme dessen festhalten, was gerade geladen wurde, und ihren Zweck aushebeln): Das Update wird mit Gradles Meldung zurückgenommen, und du entscheidest.
+
+### Voraussetzungen für Gradle
+
+Ein JDK, das das Gradle des Builds unterstützt, Gradle 7.6 oder neuer und entweder ein Gradle Wrapper im Repository oder `gradle` im `PATH`; fehlt beides, bricht der Gradle-Scan mit einer klaren Meldung ab, statt zu raten. Auf welchem JDK eine Gradle-Version läuft, bestimmt Gradle (Gradle 7.6.6 läuft zum Beispiel nicht auf JDK 21). Die Integrationstests laufen gegen Gradle 7.6.6 (JDK 17), 8.14.3 und 9.8.1 (JDK 21). Nicht abgedeckt: das Aktualisieren des Gradle Wrappers selbst, Android- und Kotlin-Multiplatform-Builds (nicht verifiziert), Windows (spezifiziert, nicht verifiziert) und Plugins aus `settings.gradle`.
+
 ### Repository-Root
 
 Elevate verhält sich gleich, egal wo im Repository es gestartet wird. Der Root wird so bestimmt:
 
 1. Das nächste Verzeichnis (vom Startverzeichnis aufwärts) mit einer `elevate.config.json` ist der Root.
-2. Sonst schlägt npm das nächste Verzeichnis vor, dessen `package.json` `workspaces` deklariert, und Maven das obere Ende der zusammenhängenden POM-Kette (ein `<parent>`, der über `<relativePath>` gefunden wird, und jeder Aggregator, der das Projekt in `<modules>` aufführt). Der äußerste Vorschlag gewinnt.
+2. Sonst schlägt npm das nächste Verzeichnis vor, dessen `package.json` `workspaces` deklariert, Maven das obere Ende der zusammenhängenden POM-Kette (ein `<parent>`, der über `<relativePath>` gefunden wird, und jeder Aggregator, der das Projekt in `<modules>` aufführt) und Gradle das nächste Verzeichnis mit einer `settings.gradle(.kts)` (`buildSrc` gehört zum umgebenden Build, und ein Build, den eine äußere Settings-Datei mit einem literalen `includeBuild` einbindet, löst zu diesem äußeren Build auf). Der äußerste Vorschlag gewinnt.
 3. Ohne jede Markierung ist das Startverzeichnis der Root.
 
 Die Suche verlässt nie den Checkout der Versionsverwaltung: Sie endet im nächsten Verzeichnis, das einen `.git`-Eintrag enthält. Eine verirrte `package.json` oder `pom.xml` oberhalb des Repositorys wird daher nie für dessen Root gehalten. Manifeste, die sich nicht lesen lassen, werden übersprungen.
@@ -178,7 +241,7 @@ src/
 │   ├── versions.ts              #   Erkennung von Vorabversionen & Versionshilfen
 │   ├── ports.ts                 #   Domain Ports (ModuleDiscoveryPort, RegistryPort, etc.)
 │   ├── ecosystem-strategy.ts    #   Strategy Pattern: Plattform-agnostisches Interface
-│   └── ecosystem-factory.ts     #   Factory Pattern: Liefert npm- oder Maven-Strategie
+│   └── ecosystem-factory.ts     #   Factory Pattern: Liefert die npm-, Maven- oder Gradle-Strategie
 │
 ├── adapters/                    # 🔌 ADAPTERS (Konkrete Implementierungen)
 │   ├── shared/                  #   🧰 XML (positionsgenau), Prozesse, Snapshots, Pooling
@@ -198,18 +261,35 @@ src/
 │   │   ├── npm-verifier.ts      #     npm ls / eigene Verifikation
 │   │   └── npm-strategy.ts      #     NpmEcosystemStrategy
 │   │
-│   └── maven/                   #   ☕ Java / Maven Adapter
-│       ├── maven-command.ts     #     Aufruf über Maven Wrapper / mvn
-│       ├── maven-pom.ts         #     Rohes POM-Modell mit editierbaren Textbereichen
-│       ├── maven-project.ts     #     Alle POMs des Repos, Parent-Ketten, Reactors
-│       ├── maven-discovery.ts   #     Module inkl. Root-POM, Versionen, Aggregator
-│       ├── maven-resolution.ts  #     Effective POM & Report des versions-maven-plugin
-│       ├── maven-locator.ts     #     Findet die Stelle, an der eine Version steht
-│       ├── maven-scanner.ts     #     Herkunft, Angleichen, Update-Kandidaten
-│       ├── maven-registry.ts    #     `elevate versions` über Maven (jeder Nexus/Artifactory)
-│       ├── maven-updater.ts     #     Formatierungserhaltende POM-Änderungen
-│       ├── maven-verifier.ts    #     mvn test-compile -pl … -amd
-│       └── maven-strategy.ts    #     MavenEcosystemStrategy
+│   ├── maven/                   #   ☕ Java / Maven Adapter
+│   │   ├── maven-command.ts     #     Aufruf über Maven Wrapper / mvn
+│   │   ├── maven-pom.ts         #     Rohes POM-Modell mit editierbaren Textbereichen
+│   │   ├── maven-project.ts     #     Alle POMs des Repos, Parent-Ketten, Reactors
+│   │   ├── maven-discovery.ts   #     Module inkl. Root-POM, Versionen, Aggregator
+│   │   ├── maven-resolution.ts  #     Effective POM & Report des versions-maven-plugin
+│   │   ├── maven-locator.ts     #     Findet die Stelle, an der eine Version steht
+│   │   ├── maven-scanner.ts     #     Herkunft, Angleichen, Update-Kandidaten
+│   │   ├── maven-registry.ts    #     `elevate versions` über Maven (jeder Nexus/Artifactory)
+│   │   ├── maven-updater.ts     #     Formatierungserhaltende POM-Änderungen
+│   │   ├── maven-verifier.ts    #     mvn test-compile -pl … -amd
+│   │   └── maven-strategy.ts    #     MavenEcosystemStrategy
+│
+│   └── gradle/                  #   🐘 Java / Gradle Adapters
+│       ├── gradle-command.ts    #     Aufruf über Wrapper / gradle, Gradles eigene Fehlertexte
+│       ├── gradle-init-script.ts #    Das Groovy-Init-Skript, das Describe-/Lookup-Läufe beantwortet
+│       ├── gradle-probe.ts      #     runDescribe / runLookup und das Scratch-Verzeichnis
+│       ├── gradle-discovery.ts  #     Build-Verzeichnisse, Repository-Root, Module aus den beschriebenen Builds
+│       ├── gradle-versions.ts   #     Gradles Versionsreihenfolge
+│       ├── gradle-repositories.ts #   Wirksame Repositories, öffentliche Hosts, Lookup-Plan, Schutz interner Gruppen
+│       ├── gradle-text.ts       #     String-Literale außerhalb von Kommentaren, formatierungserhaltende Edits
+│       ├── gradle-catalog.ts    #     gradle/libs.versions.toml: Einträge und der Text einer Version
+│       ├── gradle-locator.ts    #     Findet, wo eine Version deklariert ist
+│       ├── gradle-scanner.ts    #     Herkunft, Angleichen an Included Builds, Update-Kandidaten
+│       ├── gradle-registry.ts   #     `elevate versions` über Gradle (jeder Nexus/Artifactory)
+│       ├── gradle-locks.ts      #     gradle.lockfile finden und --update-locks
+│       ├── gradle-updater.ts    #     Formatierungserhaltende Edits, Lock-Auffrischung
+│       ├── gradle-verifier.ts   #     testClasses / assemble der betroffenen Projekte
+│       └── gradle-strategy.ts   #     GradleEcosystemStrategy
 │
 ├── application/                 # 🧭 ANWENDUNGSFÄLLE für TUI, CLI und MCP
 │   ├── scan.ts                  #     Scan-Kontext, Modulsuche, JSON-Ausgabe
@@ -283,7 +363,7 @@ node tools/updater/elevate/index.mjs update --module=apps/e2e-cockpit --packages
 node tools/updater/elevate/index.mjs update --module=apps/web --all --keep-on-failure
 ```
 
-`scan --json` liefert je Modul die `updates` (mit `action`, `origin` und bei Maven `declaredIn`) und die übersprungenen Abhängigkeiten unter `skipped` mit `reason`. `update` endet mit Exit-Code `2`, wenn das Update fehlschlug und zurückgenommen wurde.
+`scan --json` liefert je Modul die `updates` (mit `action`, `origin` und bei Maven und Gradle `declaredIn`, bei Gradle außerdem `alsoDeclaredIn`, wenn eine Version an mehreren Stellen steht) und die übersprungenen Abhängigkeiten unter `skipped` mit `reason`. `update` endet mit Exit-Code `2`, wenn das Update fehlschlug und zurückgenommen wurde.
 
 ### 2. Model Context Protocol (MCP) Server
 
@@ -307,7 +387,7 @@ In der MCP-Konfiguration hinterlegen (z. B. `claude_desktop_config.json` oder An
 #### Verfügbare MCP-Tools für LLMs:
 | Tool | Funktion |
 | :--- | :--- |
-| `elevate_discover_modules` | Erkennt alle Monorepo-Module und Workspaces für npm oder Maven |
+| `elevate_discover_modules` | Erkennt alle Monorepo-Module und Workspaces für npm, Maven, Cargo oder Gradle (Gradle-Module nennen die Art ihres Builds) |
 | `elevate_scan` | Scannt ein Modul (oder alle Module) nach Updates und anzugleichenden internen Abhängigkeiten; nennt übersprungene Abhängigkeiten mit Grund |
 | `elevate_get_versions` | Ruft die Versionshistorie aus der Registry ab (keine öffentliche Abfrage interner Pakete) |
 | `elevate_apply_updates` | Wendet Updates mit Verifikation, Major-Guardrail und Rücknahme an (`keepOnFailure` optional) |
@@ -319,7 +399,7 @@ In der MCP-Konfiguration hinterlegen (z. B. `claude_desktop_config.json` oder An
 
 | Taste | Aktion |
 | :--- | :--- |
-| **`E`** | **Ökosystem umschalten (📦 Node/npm ⇄ ☕ Java/Maven)** |
+| **`E`** | **Ökosystem umschalten (📦 Node/npm → ☕ Java/Maven → 🦀 Rust/Cargo → 🐘 Java/Gradle)** |
 | **`W`** | Modul- / Workspace-Auswahl öffnen |
 | **`V`** | **Version heraussuchen (Interaktiver Such- & Filterdialog)** |
 | **`L`** | Sprache umschalten (Deutsch ⇄ English) |
@@ -352,9 +432,9 @@ Im Wurzelverzeichnis deines Repositories kann optional eine `elevate.config.json
 * **`author`:** Optionaler Name, der oben rechts im Header erscheint.
 * **`channel`:** `"stable"` (Standard, schließt Betas/RCs aus) oder `"all"` (zeigt auch Vorabversionen).
 * **`locale`:** `"de"` (Deutsch), `"en"` (Englisch) oder `"auto"` (automatische Erkennung).
-* **`internalScopes`:** Interne npm-Scopes und Maven-groupId-Präfixe. `@my-org` trifft `@my-org/*`; `com.mycompany` trifft `com.mycompany` und `com.mycompany.*` (nicht `com.mycompanyx`). Passende Pakete werden nur in privaten Registries abgefragt. *Früher `excludeScopes`; der alte Name wird weiter gelesen und als veraltet gemeldet.*
+* **`internalScopes`:** Interne npm-Scopes und Maven-/Gradle-groupId-Präfixe (bei Gradle auch Plugin-IDs). `@my-org` trifft `@my-org/*`; `com.mycompany` trifft `com.mycompany` und `com.mycompany.*` (nicht `com.mycompanyx`). Passende Pakete werden nur in privaten Registries abgefragt. *Früher `excludeScopes`; der alte Name wird weiter gelesen und als veraltet gemeldet.*
 * **`mavenPlugins`:** Optionale Versionen der Maven-Plugins, die Elevate startet: `help` (`maven-help-plugin`, Standard `3.5.2`) und `versions` (`versions-maven-plugin`, Standard `2.22.0`). Nutze es, wenn dein Repository-Manager die Standardversionen nicht anbietet. Ungültige Werte fallen mit einer Warnung auf den Standard zurück.
-* **`postUpdateScript`:** Optionaler Befehl, der die Standard-Verifikation (`npm ls` / `mvn test-compile`) ersetzt. Läuft im Repository-Root (npm) bzw. im Modulverzeichnis (Maven).
+* **`postUpdateScript`:** Optionaler Befehl, der die Standard-Verifikation (`npm ls` / `mvn test-compile`) ersetzt. Läuft im Repository-Root (npm), im Modulverzeichnis (Maven) bzw. im Verzeichnis des Gradle-Builds des Moduls (Gradle).
 
 ---
 
