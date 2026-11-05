@@ -57,7 +57,7 @@ its authors have never seen.
 | `PLUG` | `test/unit/maven-plugins.test.ts` |
 | `AUDIT` | `test/unit/npm-audit.test.ts` |
 | `CONF` | `test/unit/config-errors.test.ts` (`CONF-07` is checked by running the command line) |
-| `PWS` | `test/unit/pnpm-workspaces.test.ts` (`PWS-14` and `PWS-15` are checked by running the command line, `PWS-16` through the MCP server) |
+| `PWS` | `test/unit/pnpm-workspaces.test.ts`; `PWS-14` and `PWS-15` (command line) and `PWS-16` (MCP server) in `test/integration/pnpm-cli.test.ts` |
 | `PLINK` | `test/unit/pnpm-links.test.ts` |
 | `PINST` | `test/unit/pnpm-install.test.ts`; the `@integration` scenarios in `test/integration/pnpm.test.ts` |
 | `CAT` | `test/unit/pnpm-catalogs.test.ts`; `CAT-15` in `test/integration/pnpm.test.ts` |
