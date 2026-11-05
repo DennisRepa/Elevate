@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0](https://github.com/DennisRepa/Elevate/compare/v1.6.0...v1.7.0) (2026-11-05)
+
+
+### Features
+
+* **cargo:** report a locked release that was yanked ([020cbe6](https://github.com/DennisRepa/Elevate/commit/020cbe687d133e9a5f1aac647f449cba1f137e4e))
+* **cargo:** report yanked locked releases, document lock limit, correct Node engines ([2ee5eda](https://github.com/DennisRepa/Elevate/commit/2ee5edaff9f16c28c1b94ac44840783e4bde7d64))
+
+
+### Fixes
+
+* **deps:** declare the Node versions the dependencies actually need ([b513093](https://github.com/DennisRepa/Elevate/commit/b513093005f6283b88a82b4918ac780df1b5ea12))
+
+
+### Documentation
+
+* **cargo:** note that a pending manifest update hides the lock update ([7aebd16](https://github.com/DennisRepa/Elevate/commit/7aebd16c2f095f18372835a1bc27650e90242a16))
+
 ## [1.6.0](https://github.com/DennisRepa/Elevate/compare/v1.5.0...v1.6.0) (2026-11-05)
 
 
