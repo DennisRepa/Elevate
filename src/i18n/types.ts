@@ -44,6 +44,8 @@ export interface Translations {
     align: string;
     /** Internal package from a private registry. */
     internal: string;
+    /** The declaration is shared with other crates (Cargo `workspace = true`). */
+    shared: (count: number) => string;
   };
   status: {
     selectedOf: (selected: number, total: number) => string;
@@ -73,6 +75,8 @@ export interface Translations {
     latestBadge: string;
     currentBadge: string;
     customBadge: string;
+    /** Other modules whose declaration changes with this one. */
+    alsoChanges: (names: string[]) => string;
   };
   updating: {
     title: string;
@@ -101,6 +105,7 @@ export interface Translations {
     updatingChirps: string[];
     successChirps: string[];
     mavenChirps: string[];
+    cargoChirps: string[];
   };
   splash: {
     tagline: string;

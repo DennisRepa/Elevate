@@ -3,6 +3,7 @@ import React from 'react';
 import { render } from 'ink-testing-library';
 import { PackageList } from '../../src/components/package-list.js';
 import { SummaryView } from '../../src/components/summary-view.js';
+import { VersionModal } from '../../src/components/version-modal.js';
 import { en } from '../../src/i18n/locales/en.js';
 import { de } from '../../src/i18n/locales/de.js';
 import { EcosystemFactory } from '../../src/domain/ecosystem-factory.js';
@@ -71,5 +72,58 @@ describe('SummaryView', () => {
     const frame = lastFrame() ?? '';
     expect(frame).toContain('all changes were rolled back');
     expect(frame).toContain('@acme/core: installed from registry');
+  });
+});
+
+describe('Cargo declarations in the dashboard', () => {
+  const crate: UpdateCandidate = {
+    coordinate: { identifier: 'serde', artifact: 'serde', ecosystem: 'cargo' },
+    currentRange: '1.0.100',
+    currentClean: '1.0.100',
+    latest: '1.0.229',
+    newRange: '1.0.229',
+    diff: 'patch',
+    scope: 'prod',
+    selected: true,
+    origin: { kind: 'public' },
+    action: 'update',
+    qualifier: 'cfg(unix)',
+    sharedWith: ['api', 'web'],
+    declaration: { file: '/r/Cargo.toml', kind: 'dependency-management', displayPath: 'Cargo.toml' },
+  };
+
+  it('CUI-01 a row names where the dependency applies and that others share its version', () => {
+    const { lastFrame } = render(<PackageList items={[crate]} cursor={0} loading={false} skipped={[]} t={en} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('serde');
+    expect(frame).toContain('(cfg(unix))');
+    expect(frame).toContain('[+2 crates]');
+  });
+
+  it('CUI-01 the rows are translated', () => {
+    const { lastFrame } = render(<PackageList items={[crate]} cursor={0} loading={false} skipped={[]} t={de} />);
+    expect(lastFrame()).toContain('[+2 Crates]');
+  });
+
+  it('CUI-02 a row without qualifier or sharing shows neither', () => {
+    const plain = { ...crate, qualifier: undefined, sharedWith: undefined };
+    const frame = render(<PackageList items={[plain]} cursor={0} loading={false} skipped={[]} t={en} />).lastFrame() ?? '';
+    expect(frame).not.toContain('crates]');
+    expect(frame).not.toContain('(cfg');
+  });
+
+  it('CUI-03 the version picker lists the crates that share the declaration', () => {
+    const strategy = EcosystemFactory.getStrategy('cargo');
+    const { lastFrame } = render(
+      <VersionModal
+        strategy={strategy}
+        candidate={crate}
+        config={{ rootDir: '/r', internalScopes: [] }}
+        onSelect={() => {}}
+        onCancel={() => {}}
+        t={en}
+      />,
+    );
+    expect(lastFrame()).toContain('Also changes: api, web');
   });
 });
