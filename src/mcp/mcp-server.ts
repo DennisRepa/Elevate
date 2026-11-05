@@ -18,6 +18,7 @@ import { candidateToJson, createScanContext, findModule, scanModule, scanModules
 import { describeSkip } from '../application/describe.js';
 import { selectRequested } from '../application/update-selection.js';
 import type { UpdateRequest } from '../application/update-selection.js';
+import { VERSION } from '../version.js';
 import { runUpdateWorkflow } from '../application/update-workflow.js';
 import { coordinateFromIdentifier, lookupVersions } from '../application/version-lookup.js';
 
@@ -31,7 +32,7 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
   const server = new Server(
     {
       name: 'elevate-mcp',
-      version: '1.2.0',
+      version: VERSION,
     },
     {
       capabilities: {
