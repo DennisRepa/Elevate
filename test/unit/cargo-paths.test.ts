@@ -82,7 +82,10 @@ describe.skipIf(!IS_WINDOWS || !hasCargo)('WIN: real cargo in a directory with s
   it('CWIN-03 a repository below a path containing & is discovered', async () => {
     const root = makeTree({ 'R&D/Cargo.toml': '[package]\nname="x"\nversion="0.1.0"\nedition="2021"\n', 'R&D/src/main.rs': 'fn main(){}\n' });
     const actual = await vi.importActual<typeof import('../../src/adapters/shared/process.js')>('../../src/adapters/shared/process.js');
-    process_.runCommand.mockImplementation((...call: Parameters<typeof actual.runCommand>) => actual.runCommand(...call));
+    // Vitest also invokes the implementation without arguments when it resets the mock.
+    process_.runCommand.mockImplementation((...call: Parameters<typeof actual.runCommand>) =>
+      call.length ? actual.runCommand(...call) : Promise.resolve({ exitCode: 0, stdout: '', stderr: '', timedOut: false }),
+    );
     const modules = await new CargoModuleDiscoveryAdapter().discover(join(root, 'R&D'));
     expect(modules.map((m) => m.id)).toEqual(['x']);
   });
