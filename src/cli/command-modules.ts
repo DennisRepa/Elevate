@@ -13,13 +13,15 @@ export async function handleModulesCommand(options: CliOptions, config: ElevateC
   const strategy = EcosystemFactory.getStrategy(ecosystem);
 
   const modules = await strategy.discovery.discover(config.rootDir);
+  const displayName = strategy.displayNameFor?.(config.rootDir) ?? strategy.displayName;
+  const packageManager = strategy.packageManagerFor?.(config.rootDir);
 
   if (options.json) {
-    console.log(JSON.stringify({ ecosystem, count: modules.length, modules }, null, 2));
+    console.log(JSON.stringify({ ecosystem, ...(packageManager ? { packageManager } : {}), count: modules.length, modules }, null, 2));
     return 0;
   }
 
-  console.log(`\n🪶 Discovered ${strategy.icon} ${strategy.displayName} Modules (${modules.length}):\n`);
+  console.log(`\n🪶 Discovered ${strategy.icon} ${displayName} Modules (${modules.length}):\n`);
   for (const m of modules) {
     const isRootBadge = m.isRoot ? ' [ROOT]' : '';
     console.log(`  • ${m.name.padEnd(45)} (${m.relPath})${isRootBadge}`);

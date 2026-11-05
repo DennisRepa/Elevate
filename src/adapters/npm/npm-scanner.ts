@@ -8,7 +8,11 @@
  *   range does not include that version is not linked by npm but installed
  *   from a registry, so it is offered for alignment.
  * - private: the registry configured for the package; never a public one.
- * - public: the configured registry via `npm view`.
+ * - public: the configured registry via `npm view` (`pnpm view` in a pnpm repository).
+ *
+ * In a pnpm repository `workspace:` ranges are aligned, a plain range on a
+ * module is listed as not linked, and `catalog:` ranges are resolved through
+ * pnpm-workspace.yaml.
  */
 
 import { readFileSync } from 'node:fs';
@@ -17,6 +21,7 @@ import semver from 'semver';
 import type { DependencyReaderPort, RegistryPort, ScanContext } from '../../domain/ports.js';
 import type {
   DependencyCoordinate,
+  VersionDeclaration,
   DependencyOrigin,
   ProjectModule,
   ScanResult,
@@ -28,7 +33,10 @@ import { diffVersions, extractPreReleaseTag, rangePrefix } from '../../domain/ve
 import { mapPooled } from '../shared/pool.js';
 import { isPublicNpmRegistry } from './npm-config.js';
 import type { NpmConfigReader } from './npm-config.js';
-import { assertNpmManaged } from './npm-package-manager.js';
+import { prepareSupportedPackageManager } from './npm-package-manager.js';
+import { splitRangeProtocol } from './npm-protocols.js';
+import { readPnpmWorkspace } from './pnpm-workspace.js';
+import type { PnpmWorkspace } from './pnpm-workspace.js';
 import { isValidPackageName } from './npm-registry.js';
 
 const CONCURRENCY = 6;
@@ -49,7 +57,8 @@ export class NpmDependencyAdapter implements DependencyReaderPort {
   ) {}
 
   async scan(module: ProjectModule, context: ScanContext): Promise<ScanResult> {
-    assertNpmManaged(context.rootDir);
+    const manager = await prepareSupportedPackageManager(context.rootDir);
+    const pnpm = manager === 'pnpm';
 
     let pkg: any;
     try {
@@ -69,12 +78,21 @@ export class NpmDependencyAdapter implements DependencyReaderPort {
       ),
     };
 
-    const outcomes = await mapPooled(declaredDependencies(pkg), CONCURRENCY, async (dep) => {
+    const workspaceFile = pnpm ? readPnpmWorkspace(context.rootDir) : undefined;
+
+    const outcomes = await mapPooled(declaredDependencies(pkg), CONCURRENCY, async (dep): Promise<Outcome> => {
       const origin = classifyOrigin(dep.name, 'npm', originContext);
       if (origin.kind === 'workspace') {
         const target = context.workspace.get(dep.name);
-        const candidate = target ? alignmentCandidate(dep, target, origin) : null;
+        if (pnpm && isUpgradableRange(dep.range) && splitRangeProtocol(dep.range).protocol === undefined) {
+          // pnpm resolves a plain range from the registry, never from the workspace.
+          return { skipped: { identifier: dep.name, origin: 'workspace', reason: 'not-linked', detail: dep.range } };
+        }
+        const candidate = target ? alignmentCandidate(dep, target, origin, pnpm) : null;
         return candidate ? { candidate } : null;
+      }
+      if (pnpm && splitRangeProtocol(dep.range).protocol === 'catalog') {
+        return this.catalogOutcome(dep, origin, context, module.path, workspaceFile);
       }
       return this.registryOutcome(dep, origin, context);
     });
@@ -91,11 +109,46 @@ export class NpmDependencyAdapter implements DependencyReaderPort {
     return { candidates, skipped };
   }
 
+  /** A `catalog:` dependency: the range comes from pnpm-workspace.yaml and is written back there. */
+  private async catalogOutcome(
+    dep: DeclaredDependency,
+    origin: DependencyOrigin,
+    context: ScanContext,
+    modulePath: string,
+    workspaceFile: PnpmWorkspace | undefined,
+  ): Promise<Outcome> {
+    const catalogName = splitRangeProtocol(dep.range).rest || 'default';
+    const unresolved = (detail: string): Outcome => ({
+      skipped: { identifier: dep.name, origin: origin.kind, reason: 'catalog-unresolved', detail },
+    });
+    if (!workspaceFile) return unresolved('pnpm-workspace.yaml is missing or not valid YAML');
+    if (catalogName === 'default' && workspaceFile.ambiguousDefaultCatalog) {
+      return unresolved("catalog 'default' is defined twice (catalog and catalogs.default)");
+    }
+    const catalog = workspaceFile.catalogs.get(catalogName);
+    if (!catalog) return unresolved(`no catalog '${catalogName}'`);
+    const range = catalog.get(dep.name);
+    if (range === undefined) return unresolved(`no entry for '${dep.name}' in catalog '${catalogName}'`);
+
+    const declaration: VersionDeclaration = {
+      file: workspaceFile.file,
+      kind: 'catalog',
+      catalogName,
+      displayPath: 'pnpm-workspace.yaml',
+    };
+    const sharedWith = usersOfCatalogEntry(context, modulePath, dep.name, catalogName);
+    return this.registryOutcome({ ...dep, range }, origin, context, {
+      declaration,
+      ...(sharedWith.length > 0 ? { sharedWith } : {}),
+    });
+  }
+
   /** Looks up a private or public dependency in its registry. */
   private async registryOutcome(
     dep: DeclaredDependency,
     origin: DependencyOrigin,
     context: ScanContext,
+    extra: Partial<UpdateCandidate> = {},
   ): Promise<Outcome> {
     // Git URLs, file paths, aliases and dist-tags are not registry versions.
     if (!isUpgradableRange(dep.range)) return null;
@@ -148,6 +201,7 @@ export class NpmDependencyAdapter implements DependencyReaderPort {
         action: 'update',
         isPreRelease: tag !== undefined,
         preReleaseTag: tag,
+        ...extra,
       },
     };
   }
@@ -195,12 +249,18 @@ export function alignmentCandidate(
   dep: DeclaredDependency,
   target: ProjectModule,
   origin: DependencyOrigin,
+  pnpm = false,
 ): UpdateCandidate | null {
-  const local = target.version;
-  if (!local || !semver.valid(local) || !isUpgradableRange(dep.range)) return null;
-  if (semver.satisfies(local, dep.range, { includePrerelease: true })) return null;
+  // Only a pnpm repository interprets `workspace:`; elsewhere it is no SemVer range and stays untouched.
+  const split = pnpm ? splitRangeProtocol(dep.range) : { protocol: undefined, rest: dep.range };
+  const range = split.protocol === 'workspace' ? split.rest : dep.range;
+  const protocol = split.protocol === 'workspace' ? 'workspace:' : '';
 
-  const currentClean = semver.minVersion(dep.range)?.version ?? '0.0.0';
+  const local = target.version;
+  if (!local || !semver.valid(local) || !isUpgradableRange(range)) return null;
+  if (semver.satisfies(local, range, { includePrerelease: true })) return null;
+
+  const currentClean = semver.minVersion(range)?.version ?? '0.0.0';
   const diff = diffVersions(currentClean, local);
   const tag = semver.prerelease(local) ? extractPreReleaseTag(local) ?? 'PRE' : undefined;
 
@@ -209,7 +269,7 @@ export function alignmentCandidate(
     currentRange: dep.range,
     currentClean,
     latest: local,
-    newRange: `${rangePrefix(dep.range)}${local}`,
+    newRange: `${protocol}${rangePrefix(range)}${local}`,
     diff,
     scope: dep.scope,
     selected: diff !== 'major',
@@ -219,4 +279,23 @@ export function alignmentCandidate(
     isPreRelease: tag !== undefined,
     preReleaseTag: tag,
   };
+}
+
+/** Ids of the other modules whose scanned sections refer to the same catalog entry. */
+function usersOfCatalogEntry(context: ScanContext, selfPath: string, name: string, catalogName: string): string[] {
+  const users: string[] = [];
+  for (const module of context.workspace.values()) {
+    if (module.path === selfPath) continue;
+    let pkg: any;
+    try {
+      pkg = JSON.parse(readFileSync(join(module.path, 'package.json'), 'utf8'));
+    } catch {
+      continue;
+    }
+    const dep = declaredDependencies(pkg).find((d) => d.name === name);
+    if (!dep || splitRangeProtocol(dep.range).protocol !== 'catalog') continue;
+    if ((splitRangeProtocol(dep.range).rest || 'default') !== catalogName) continue;
+    users.push(module.id);
+  }
+  return users;
 }

@@ -188,6 +188,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
             strategy={strategy}
             nextStrategyName={`${nextStrategy.icon} ${nextStrategy.displayName}`}
             channel={config.channel}
+            rootDir={config.rootDir}
           />
 
           {view === 'workspace_modal' && (
