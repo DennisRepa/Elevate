@@ -78,7 +78,7 @@ export type VersionDiff = 'patch' | 'minor' | 'major';
 export interface VersionDeclaration {
   /** Absolute path of the manifest that contains the literal. */
   file: string;
-  kind: 'dependency' | 'dependency-management' | 'parent' | 'property' | 'catalog';
+  kind: 'dependency' | 'dependency-management' | 'parent' | 'property' | 'catalog' | 'lockfile';
   /** Name of the pnpm catalog holding the version (kind `catalog`); `default` for the default catalog. */
   catalogName?: string;
   /** Name of the property holding the version (kind `property`). */
@@ -108,8 +108,10 @@ export interface UpdateCandidate {
   /**
    * `update`: move to a newer version from a registry.
    * `align`: move to the local version of a workspace module.
+   * `lock`: move the locked version to a newer one the requirement already allows;
+   * the manifest stays as it is (Cargo).
    */
-  action: 'update' | 'align';
+  action: 'update' | 'align' | 'lock';
   /** Where the version is written (Maven); undefined means the module manifest. */
   declaration?: VersionDeclaration;
   /**

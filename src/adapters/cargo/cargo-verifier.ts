@@ -6,7 +6,8 @@
  * It covers the members whose manifests changed plus every member that depends
  * on them by path, because a change in a library breaks its consumers. A
  * changed workspace root manifest (shared `[workspace.dependencies]`) checks
- * the whole workspace.
+ * the whole workspace, and so does a change to Cargo.lock alone (a lock-only
+ * update reaches every crate that uses the dependency).
  *
  * Doctests, non-default features and other targets are not covered; a
  * `postUpdateScript` is the way to add them.
@@ -29,6 +30,7 @@ const same = (a: string, b: string) => relative(resolve(a), resolve(b)) === '';
 export function planCheck(metadata: CargoMetadata, module: ProjectModule, changedFiles: readonly string[], locked: boolean): string[] {
   const args = ['check', '--all-targets', ...(locked ? ['--locked'] : [])];
   const rootManifest = join(metadata.workspace_root, 'Cargo.toml');
+  const lockFile = join(metadata.workspace_root, 'Cargo.lock');
   const memberManifests = new Set(metadata.packages.map((p) => resolve(p.manifest_path)));
 
   if (changedFiles.some((f) => same(f, rootManifest))) {
@@ -36,6 +38,9 @@ export function planCheck(metadata: CargoMetadata, module: ProjectModule, change
     const isVirtualRoot = !memberManifests.has(resolve(rootManifest));
     if (isVirtualRoot || metadata.packages.length > 1) return [...args, '--workspace'];
   }
+
+  // A new version in Cargo.lock reaches every crate that uses the dependency, and no manifest says which.
+  if (changedFiles.length > 0 && changedFiles.every((f) => same(f, lockFile))) return [...args, '--workspace'];
 
   const changed = new Set(
     metadata.packages.filter((p) => changedFiles.some((f) => same(f, p.manifest_path))).map((p) => p.name),

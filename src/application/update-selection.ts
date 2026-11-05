@@ -109,6 +109,8 @@ function retarget(found: UpdateCandidate, target: string | undefined, options: S
   const isPreRelease = isPreReleaseVersion(target);
   return {
     ...found,
+    // A lock update pins exactly the version that was picked.
+    ...(found.action === 'lock' ? { latest: target } : {}),
     newRange: policyOf(options).rewrite(found.currentRange, target),
     diff,
     selected: true,

@@ -48,6 +48,12 @@ export class CargoUpdaterAdapter implements DependencyUpdaterPort {
     const lockFile = join(dir, 'Cargo.lock');
     const lockedBefore = readLockedVersions(lockFile);
 
+    // Updates of the lock file alone leave every manifest as it is. They are checked first, so a
+    // missing or changed lock file stops the run before anything is written.
+    const lockUpdates = updates.filter((u) => u.action === 'lock');
+    updates = updates.filter((u) => u.action !== 'lock');
+    this.checkLockUpdates(lockUpdates, lockFile, lockedBefore);
+
     // Every edit is computed before the first write, so a stale file leaves nothing half-updated.
     const byFile = new Map<string, UpdateCandidate[]>();
     for (const update of updates) {
@@ -88,12 +94,39 @@ export class CargoUpdaterAdapter implements DependencyUpdaterPort {
       await this.refreshLock(dir, lockFile, lockedBefore, registryUpdates, onProgress);
     }
 
+    for (const update of lockUpdates) {
+      const name = update.coordinate.identifier;
+      onProgress(`Locking ${name} at ${update.latest}…`);
+      await this.cargoUpdate(dir, ['-p', `${name}@${update.currentClean}`, '--precise', update.latest]);
+    }
+
+    const parts: string[] = [];
+    if (updates.length > 0) {
+      parts.push(`Updated ${updates.length} requirement(s) in ${writes.length} Cargo.toml file(s)${existsSync(lockFile) ? '; Cargo.lock refreshed' : ''}`);
+    }
+    if (lockUpdates.length > 0) parts.push(`locked ${lockUpdates.length} crate(s) at a newer version in Cargo.lock`);
+    const message = parts.join('; ');
+
     return {
-      updatedCount: updates.length,
-      auditMessage: `Updated ${updates.length} requirement(s) in ${writes.length} Cargo.toml file(s)${existsSync(lockFile) ? '; Cargo.lock refreshed' : ''}.`,
+      updatedCount: updates.length + lockUpdates.length,
+      auditMessage: `${message.charAt(0).toUpperCase()}${message.slice(1)}.`,
       auditSeverity: 'clean',
       integrityViolations: [],
     };
+  }
+
+  /** A lock-only update needs a lock file that still holds the version the scan saw. */
+  private checkLockUpdates(lockUpdates: UpdateCandidate[], lockFile: string, locked: Map<string, string[]>): void {
+    if (lockUpdates.length === 0) return;
+    if (!existsSync(lockFile)) {
+      throw new InstallError(`${lockFile} does not exist any more; rescan the module.`);
+    }
+    for (const update of lockUpdates) {
+      const name = update.coordinate.identifier;
+      if (!(locked.get(name) ?? []).includes(update.currentClean)) {
+        throw new InstallError(`Cargo.lock no longer locks ${name} at ${update.currentClean}; rescan the module.`);
+      }
+    }
   }
 
   async resync(): Promise<void> {

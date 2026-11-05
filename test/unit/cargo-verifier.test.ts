@@ -38,6 +38,16 @@ describe('Cargo verification plan', () => {
     expect(planCheck(metadata, mod('api'), [], false)).toEqual(['check', '--all-targets', '-p', 'api', '-p', 'app']);
   });
 
+  it('CLOCK-17 a changed lock file alone can affect every crate that uses the dependency, so the whole workspace is checked', () => {
+    expect(planCheck(metadata, mod('util'), [join(ROOT, 'Cargo.lock')], true)).toEqual(['check', '--all-targets', '--locked', '--workspace']);
+  });
+
+  it('CLOCK-18 a lock file that changed together with a manifest keeps the check on the changed crates', () => {
+    expect(planCheck(metadata, mod('util'), [manifest('util'), join(ROOT, 'Cargo.lock')], true)).toEqual([
+      'check', '--all-targets', '--locked', '-p', 'util',
+    ]);
+  });
+
   it('CVER-03 --locked is used only when a Cargo.lock existed', () => {
     expect(planCheck(metadata, mod('util'), [manifest('util')], true)).toEqual(['check', '--all-targets', '--locked', '-p', 'util']);
   });

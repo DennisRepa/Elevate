@@ -193,5 +193,73 @@ describe.skipIf(!hasCargo())('Cargo', () => {
       for (const [file, bytes] of files) expect(readFileSync(join(root, file)).equals(bytes)).toBe(true);
     }, 600_000);
   });
+
+  describe('lock-file-only updates', () => {
+    /** `itoa = "1"` allows every 1.x release, while Cargo.lock is held back at 1.0.15. */
+    function lockedBehind() {
+      const root = makeTree({
+        'holds-old-version.js': "process.exit(require('node:fs').readFileSync('Cargo.lock', 'utf8').includes('version = \"1.0.15\"') ? 0 : 1);\n",
+        'Cargo.toml': '[workspace]\nresolver = "2"\nmembers = ["x"]\n',
+        'x/Cargo.toml': '[package]\nname = "x"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nitoa = "1"\n',
+        'x/src/main.rs': 'fn main() {}\n',
+      });
+      cargo(root, 'generate-lockfile');
+      cargo(root, 'update', '-p', 'itoa', '--precise', '1.0.15');
+      return root;
+    }
+
+    async function prepareLock(root: string) {
+      const modules = await strategy.discovery.discover(root);
+      const module = modules.find((m) => m.id === 'x')!;
+      const context = createScanContext(modules, { rootDir: root, internalScopes: [] }, 'stable');
+      return { module, scan: await scanModule(strategy, module, context) };
+    }
+
+    it('CLOCK-23 a lock held back behind a loose requirement is offered, updated and verified, with the manifest untouched', async () => {
+      const root = lockedBehind();
+      const manifest = readFileSync(join(root, 'x/Cargo.toml'));
+      const { module, scan } = await prepareLock(root);
+
+      expect(scan.candidates).toHaveLength(1);
+      expect(scan.candidates[0]).toMatchObject({ action: 'lock', currentClean: '1.0.15', selected: true, declaration: { kind: 'lockfile' } });
+      expect(scan.candidates[0]!.latest).toMatch(/^1\.0\.\d+$/);
+
+      const summary = await runUpdateWorkflow(strategy, module, root, selectAll(scan, false).selected, {});
+
+      expect(summary.rolledBack).toBeFalsy();
+      expect(summary.verificationStatus).toBe('clean');
+      expect(summary.verificationLabel).toContain('--workspace');
+      expect(readFileSync(join(root, 'x/Cargo.toml')).equals(manifest)).toBe(true);
+      expect(readFileSync(join(root, 'Cargo.lock'), 'utf8')).not.toContain('version = "1.0.15"');
+      cargo(root, 'check', '--locked', '--offline');
+    }, 600_000);
+
+    it('CLOCK-24 a failing verification restores Cargo.lock byte for byte', async () => {
+      const root = lockedBehind();
+      const lockBefore = readFileSync(join(root, 'Cargo.lock'));
+      const { module, scan } = await prepareLock(root);
+
+      const summary = await runUpdateWorkflow(strategy, module, root, selectAll(scan, false).selected, {
+        // Passes while the old version is locked and fails once the update has moved it, so the
+        // failure is the update's and not an existing one.
+        postUpdateScript: 'node holds-old-version.js',
+        postUpdateLabel: 'old version still locked',
+      });
+
+      expect(summary.rolledBack).toBe(true);
+      expect(readFileSync(join(root, 'Cargo.lock')).equals(lockBefore)).toBe(true);
+    }, 600_000);
+
+    it('CLOCK-25 a repository without Cargo.lock offers no lock updates and gets none', async () => {
+      const root = makeTree({
+        'Cargo.toml': '[workspace]\nresolver = "2"\nmembers = ["x"]\n',
+        'x/Cargo.toml': '[package]\nname = "x"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nitoa = "1"\n',
+        'x/src/main.rs': 'fn main() {}\n',
+      });
+      const { scan } = await prepareLock(root);
+      expect(scan.candidates).toEqual([]);
+      expect(existsSync(join(root, 'Cargo.lock'))).toBe(false);
+    }, 120_000);
+  });
 });
 

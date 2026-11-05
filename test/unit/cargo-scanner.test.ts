@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CargoDependencyAdapter } from '../../src/adapters/cargo/cargo-scanner.js';
 import { CrateNotFoundError, RegistryAuthRequiredError } from '../../src/adapters/cargo/cargo-index.js';
@@ -35,10 +36,15 @@ interface Setup {
   scopes?: string[];
   endpoint?: (registry: string | undefined) => { index: string; isPublic: boolean };
   channel?: 'stable' | 'all';
+  /** Cargo.lock content as [crate, version] pairs; omitted = no lockfile. */
+  lock?: [string, string][];
 }
 
 async function scan(setup: Setup) {
   const root = makeTree({ 'Cargo.toml': '[workspace]\nmembers=["a"]\n', 'a/Cargo.toml': '', ...setup.manifests });
+  if (setup.lock) {
+    writeFileSync(join(root, 'Cargo.lock'), setup.lock.map(([n, v]) => `[[package]]\nname = "${n}"\nversion = "${v}"\n`).join('\n'));
+  }
   const others = setup.otherMembers ?? [];
   const files: Record<string, string> = {};
   for (const o of others) files[`${o.name}/Cargo.toml`] = o.manifest;
@@ -274,5 +280,95 @@ describe('Cargo dependency scanner', () => {
       index: { b: [v('0.1.0'), v('0.1.5')] },
     });
     expect(r.candidates[0]).toMatchObject({ action: 'update', origin: { kind: 'public' }, newRange: '0.1.5' });
+  });
+
+  describe('lock-file-only updates', () => {
+    const loose = { 'a/Cargo.toml': '[dependencies]\nitoa = "1"\n' };
+    const itoa = (...versions: string[]) => ({ itoa: versions.map((x) => v(x)) });
+
+    it('CLOCK-01 a loose requirement whose locked version is behind gets a lock-only candidate', async () => {
+      const r = await scan({ manifests: loose, deps: [dep('itoa', '^1')], index: itoa('1.0.15', '1.0.16', '1.0.18'), lock: [['itoa', '1.0.15']] });
+      expect(r.candidates).toHaveLength(1);
+      expect(r.candidates[0]).toMatchObject({
+        coordinate: { identifier: 'itoa', ecosystem: 'cargo' },
+        action: 'lock',
+        currentRange: '1.0.15',
+        currentClean: '1.0.15',
+        latest: '1.0.18',
+        newRange: '1.0.18',
+        diff: 'patch',
+        selected: true,
+        scope: 'prod',
+        origin: { kind: 'public' },
+        declaration: { kind: 'lockfile', displayPath: 'Cargo.lock', file: join(r.root, 'Cargo.lock') },
+        availableVersions: ['1.0.18', '1.0.16'],
+      });
+    });
+
+    it('CLOCK-02 without a Cargo.lock there is nothing to update in it', async () => {
+      const r = await scan({ manifests: loose, deps: [dep('itoa', '^1')], index: itoa('1.0.15', '1.0.18') });
+      expect(r.candidates).toEqual([]);
+    });
+
+    it('CLOCK-03 a lock that already holds the newest allowed version needs nothing', async () => {
+      const r = await scan({ manifests: loose, deps: [dep('itoa', '^1')], index: itoa('1.0.15', '1.0.18'), lock: [['itoa', '1.0.18']] });
+      expect(r.candidates).toEqual([]);
+    });
+
+    it('CLOCK-04 a requirement that is raised anyway shows only that candidate, not a second one for the lock', async () => {
+      const r = await scan({
+        manifests: { 'a/Cargo.toml': '[dependencies]\nitoa = "1.0.10"\n' },
+        deps: [dep('itoa', '^1.0.10')],
+        index: itoa('1.0.15', '1.0.18'),
+        lock: [['itoa', '1.0.15']],
+      });
+      expect(r.candidates.map((c) => [c.action, c.newRange])).toEqual([['update', '1.0.18']]);
+    });
+
+    it('CLOCK-05 only versions the requirement allows are offered for the lock', async () => {
+      const r = await scan({ manifests: { 'a/Cargo.toml': '[dependencies]\nitoa = "0.4"\n' }, deps: [dep('itoa', '^0.4')], index: itoa('0.4.7', '0.4.8', '1.0.18'), lock: [['itoa', '0.4.7']] });
+      // 1.0.18 breaks the requirement, so it is the manifest update that is shown; the lock stays out of it.
+      expect(r.candidates.map((c) => c.action)).toEqual(['update']);
+      const only = await scan({ manifests: { 'a/Cargo.toml': '[dependencies]\nitoa = "0.4"\n' }, deps: [dep('itoa', '^0.4')], index: itoa('0.4.7', '0.4.8'), lock: [['itoa', '0.4.7']] });
+      expect(only.candidates[0]).toMatchObject({ action: 'lock', latest: '0.4.8' });
+    });
+
+    it('CLOCK-06 a crate locked in two versions is judged by the version its requirement resolved to', async () => {
+      const r = await scan({ manifests: loose, deps: [dep('itoa', '^1')], index: itoa('0.4.8', '1.0.15', '1.0.18'), lock: [['itoa', '0.4.8'], ['itoa', '1.0.15']] });
+      expect(r.candidates[0]).toMatchObject({ action: 'lock', currentClean: '1.0.15', latest: '1.0.18' });
+    });
+
+    it('CLOCK-07 a release that needs a newer Rust than the project declares is not chosen for the lock', async () => {
+      const r = await scan({
+        manifests: loose,
+        deps: [dep('itoa', '^1')],
+        index: { itoa: [v('1.0.15'), v('1.0.16'), v('1.0.18', { rustVersion: '1.80' })] },
+        lock: [['itoa', '1.0.15']],
+        rustVersion: '1.70',
+      });
+      expect(r.candidates[0]).toMatchObject({ action: 'lock', latest: '1.0.16' });
+    });
+
+    it('CLOCK-08 pre-releases are not offered for the lock on the stable channel', async () => {
+      const r = await scan({ manifests: loose, deps: [dep('itoa', '^1')], index: itoa('1.0.15', '1.1.0-rc.1'), lock: [['itoa', '1.0.15']] });
+      expect(r.candidates).toEqual([]);
+    });
+
+    it('CLOCK-09 an exact requirement leaves no room in the lock', async () => {
+      const r = await scan({ manifests: { 'a/Cargo.toml': '[dependencies]\nitoa = "=1.0.15"\n' }, deps: [dep('itoa', '=1.0.15')], index: itoa('1.0.15', '1.0.18'), lock: [['itoa', '1.0.15']] });
+      expect(r.candidates.map((c) => c.action)).toEqual(['update']);
+    });
+
+    it('CLOCK-10 a crate from a private registry is looked up there for the lock, never on a public one', async () => {
+      const r = await scan({
+        manifests: { 'a/Cargo.toml': '[dependencies]\nsecret = { version = "1", registry = "corp" }\n' },
+        deps: [dep('secret', '^1', { source: CORP, registry: CORP })],
+        index: { secret: [v('1.2.0'), v('1.2.3')] },
+        lock: [['secret', '1.2.0']],
+        endpoint: (reg) => ({ index: reg ?? CRATES, isPublic: false }),
+      });
+      expect(r.lookups).toEqual([`${CORP}|secret`]);
+      expect(r.candidates[0]).toMatchObject({ action: 'lock', origin: { kind: 'private' }, latest: '1.2.3' });
+    });
   });
 });

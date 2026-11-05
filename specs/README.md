@@ -25,6 +25,7 @@ its authors have never seen.
 | [18-cargo-registry.feature](./18-cargo-registry.feature) | `CREG`, `CCFG` | The sparse index and the Cargo configuration that decides where lookups go |
 | [19-cargo-update.feature](./19-cargo-update.feature) | `CUPD` | Editing `Cargo.toml`, refreshing `Cargo.lock`, rollback |
 | [20-cargo-verification.feature](./20-cargo-verification.feature) | `CVER`, `CWIN`, `CUI` | `cargo check`, paths on the command line, the dashboard |
+| [21-cargo-lock-updates.feature](./21-cargo-lock-updates.feature) | `CLOCK` | Updates of `Cargo.lock` alone, when the requirement already allows more |
 
 ## Conventions
 
@@ -67,7 +68,7 @@ its authors have never seen.
 | `PLINK` | `test/unit/pnpm-links.test.ts` |
 | `PINST` | `test/unit/pnpm-install.test.ts`; the `@integration` scenarios in `test/integration/pnpm.test.ts` |
 | `CAT` | `test/unit/pnpm-catalogs.test.ts`; `CAT-15` in `test/integration/pnpm.test.ts` |
-| Cargo prefixes | `test/unit/cargo-*.test.ts`, `test/unit/discovery-diagnostics.test.tsx`, `test/unit/version*.test.ts`, `test/unit/components.test.tsx` (`CUI`), `test/integration/cargo-workflow.test.ts` (`CSCAN-04`, `CDECL-15`, `CUPD-09`, `CUPD-10`, `CUPD-14`, `CUPD-15`, `CUPD-16`, `CCFG-09`) |
+| Cargo prefixes | `test/unit/cargo-*.test.ts`, `test/unit/discovery-diagnostics.test.tsx`, `test/unit/version*.test.ts`, `test/unit/components.test.tsx` (`CUI`), `test/integration/cargo-workflow.test.ts` (`CSCAN-04`, `CDECL-15`, `CUPD-09`, `CUPD-10`, `CUPD-14`, `CUPD-15`, `CUPD-16`, `CCFG-09`, `CLOCK-23` to `CLOCK-25`) |
 
 `test/unit/cargo-specs.test.ts` keeps the Cargo specifications and their tests in step: every scenario ID of `15-` to `20-cargo-*.feature` must start the title of a test, every Cargo test ID must be a scenario, and an ID names exactly one scenario. Several tests may share an ID when they prove one scenario in parts.
 
