@@ -52,7 +52,7 @@ const ELEVATE_SKILL_CONTENT = `# Elevate — Dependency Management Agent Skill
 Use the Elevate MCP tools whenever the task involves:
 - Scanning or auditing dependencies for available updates
 - Updating one or more packages to specific or latest versions
-- Listing available versions of a package from npm or Maven registries
+- Listing available versions of a package from npm registries or Maven and Gradle repositories
 - Discovering monorepo modules and their dependency structure
 - Any dependency-related operation in a monorepo
 

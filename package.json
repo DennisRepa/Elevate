@@ -25,6 +25,7 @@
     "npm",
     "pnpm",
     "maven",
+    "gradle",
     "cargo",
     "rust",
     "mcp",
