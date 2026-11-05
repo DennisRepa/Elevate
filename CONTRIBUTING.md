@@ -69,8 +69,25 @@ When contributing code, please ensure all new domain logic resides within domain
 
 1. Ensure TypeScript compiles without errors: `npx tsc --noEmit`.
 2. Build the bundle and verify CLI commands work cleanly: `npm run build`.
-3. Keep commit messages clear and descriptive.
+3. Use a [Conventional Commit](https://www.conventionalcommits.org) title for your pull request (see below). It is checked automatically.
 4. If adding new user-facing options or strings, update both `src/i18n/locales/en.ts` and `src/i18n/locales/de.ts`.
+
+---
+
+## 🚀 Commits & Releases
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please). Pull requests are **squash-merged**, so the **PR title** becomes the commit message and decides the next version ([SemVer](https://semver.org)):
+
+| Title | Version bump |
+| :--- | :--- |
+| `fix: …` | patch (1.3.0 → 1.3.1) |
+| `feat: …` | minor (1.3.0 → 1.4.0) |
+| `feat!: …` or a `BREAKING CHANGE:` footer | major (1.3.0 → 2.0.0) |
+| `docs:`, `refactor:`, `perf:`, `build:`, `ci:`, `test:`, `chore:` | no release on their own |
+
+Add the upgrade hint for users to the commit body, e.g. `BREAKING CHANGE: excludeScopes is now internalScopes`; it appears in the changelog.
+
+**How a release happens:** release-please keeps a pull request `chore(main): release X.Y.Z` up to date with the new version and the generated `CHANGELOG.md`. Merging that pull request creates the tag, the GitHub release with its notes, and attaches the binaries. Do not edit `CHANGELOG.md` or the version in `package.json` by hand.
 
 ---
 
