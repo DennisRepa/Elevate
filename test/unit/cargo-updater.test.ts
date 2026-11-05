@@ -21,7 +21,7 @@ function candidate(
   name: string,
   currentRange: string,
   newRange: string,
-  declaration: { file: string; kind: 'dependency' | 'dependency-management' },
+  declaration: { file: string; kind: 'dependency' | 'dependency-management' | 'lockfile' },
   latest = newRange,
 ): UpdateCandidate {
   return {
@@ -151,5 +151,89 @@ describe('Cargo updater', () => {
     const calls = fakeCargo(t.lockFile, { itoa: '1.0.18' });
     await updater.applyUpdates(t.module, t.root, [candidate('itoa', '0.4', '2', { file: t.member, kind: 'dependency' }, '2.0.0')], progress);
     expect(calls[0]).toEqual(['update', '-p', 'itoa@0.4.8']);
+  });
+
+  describe('lock-file-only updates', () => {
+    /** A scan result for a crate whose locked version is behind while the requirement allows more. */
+    const lockUpdate = (name: string, locked: string, latest: string, file: string): UpdateCandidate => ({
+      ...candidate(name, locked, latest, { file, kind: 'lockfile' }, latest),
+      currentClean: locked,
+      action: 'lock',
+    });
+
+    it('CLOCK-11 only Cargo.lock is touched: the locked version is pinned, the manifest stays byte for byte', async () => {
+      const manifest = '# keep\n[dependencies]\nitoa = "1"\n';
+      const t = setup({ 'a/Cargo.toml': manifest, 'Cargo.lock': lock(['itoa', '1.0.15']) });
+      const calls = fakeCargo(t.lockFile, { itoa: '1.0.18' });
+      const update = lockUpdate('itoa', '1.0.15', '1.0.18', t.lockFile);
+
+      expect(updater.affectedFiles(t.module, t.root, [update])).toEqual([t.lockFile]);
+      await updater.applyUpdates(t.module, t.root, [update], progress);
+
+      expect(calls).toEqual([['update', '-p', 'itoa@1.0.15', '--precise', '1.0.18']]);
+      expect(readFileSync(t.member, 'utf8')).toBe(manifest);
+      expect(readLockedVersions(t.lockFile).get('itoa')).toEqual(['1.0.18']);
+    });
+
+    it('CLOCK-12 each locked crate gets its own update, addressed by the version it is locked at', async () => {
+      const t = setup({ 'a/Cargo.toml': '[dependencies]\nitoa = "1"\nlog = "0.4"\n', 'Cargo.lock': lock(['itoa', '1.0.15'], ['log', '0.4.20']) });
+      const calls = fakeCargo(t.lockFile, {});
+      await updater.applyUpdates(
+        t.module,
+        t.root,
+        [lockUpdate('itoa', '1.0.15', '1.0.18', t.lockFile), lockUpdate('log', '0.4.20', '0.4.35', t.lockFile)],
+        progress,
+      );
+      expect(calls).toEqual([
+        ['update', '-p', 'itoa@1.0.15', '--precise', '1.0.18'],
+        ['update', '-p', 'log@0.4.20', '--precise', '0.4.35'],
+      ]);
+    });
+
+    it('CLOCK-13 without a Cargo.lock the update is refused and nothing runs', async () => {
+      const t = setup({ 'a/Cargo.toml': '[dependencies]\nitoa = "1"\n' });
+      await expect(updater.applyUpdates(t.module, t.root, [lockUpdate('itoa', '1.0.15', '1.0.18', t.lockFile)], progress)).rejects.toBeInstanceOf(InstallError);
+      expect(process_.runCommand).not.toHaveBeenCalled();
+      expect(existsSync(t.lockFile)).toBe(false);
+    });
+
+    it('CLOCK-14 a lock file that no longer holds the scanned version is refused before anything runs', async () => {
+      const t = setup({ 'a/Cargo.toml': '[dependencies]\nitoa = "1"\n', 'Cargo.lock': lock(['itoa', '1.0.16']) });
+      await expect(updater.applyUpdates(t.module, t.root, [lockUpdate('itoa', '1.0.15', '1.0.18', t.lockFile)], progress)).rejects.toThrow(/1\.0\.15/);
+      expect(process_.runCommand).not.toHaveBeenCalled();
+    });
+
+    it('CLOCK-15 a failing cargo update is an InstallError with cargo\'s output', async () => {
+      const t = setup({ 'a/Cargo.toml': '[dependencies]\nitoa = "1"\n', 'Cargo.lock': lock(['itoa', '1.0.15']) });
+      process_.runCommand.mockResolvedValue({ exitCode: 101, stdout: '', stderr: 'error: failed to select a version', timedOut: false });
+      await expect(updater.applyUpdates(t.module, t.root, [lockUpdate('itoa', '1.0.15', '1.0.18', t.lockFile)], progress)).rejects.toThrow(InstallError);
+    });
+
+    it('CLOCK-16 a manifest update and a lock update in one run both happen, the manifest only for the first', async () => {
+      const t = setup({ 'a/Cargo.toml': '[dependencies]\nserde = "1.0.100"\nitoa = "1"\n', 'Cargo.lock': lock(['serde', '1.0.100'], ['itoa', '1.0.15']) });
+      const calls: string[][] = [];
+      process_.runCommand.mockImplementation(async (...call: any[]) => {
+        if (!call.length) return { exitCode: 0, stdout: '', stderr: '', timedOut: false };
+        calls.push(call[1]);
+        const spec = call[1][call[1].indexOf('-p') + 1] as string;
+        const [name] = spec.split('@');
+        const version = call[1].includes('--precise') ? call[1][call[1].indexOf('--precise') + 1] : name === 'serde' ? '1.0.229' : '1.0.15';
+        const current = readLockedVersions(t.lockFile);
+        current.set(name!, [version]);
+        writeFileSync(t.lockFile, lock(...[...current].map(([n, vs]) => [n, vs[0]!] as [string, string])));
+        return { exitCode: 0, stdout: '', stderr: '', timedOut: false };
+      });
+      await updater.applyUpdates(
+        t.module,
+        t.root,
+        [candidate('serde', '1.0.100', '1.0.229', { file: t.member, kind: 'dependency' }), lockUpdate('itoa', '1.0.15', '1.0.18', t.lockFile)],
+        progress,
+      );
+      expect(readFileSync(t.member, 'utf8')).toBe('[dependencies]\nserde = "1.0.229"\nitoa = "1"\n');
+      expect(calls).toEqual([
+        ['update', '-p', 'serde@1.0.100'],
+        ['update', '-p', 'itoa@1.0.15', '--precise', '1.0.18'],
+      ]);
+    });
   });
 });
