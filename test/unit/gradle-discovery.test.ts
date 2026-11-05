@@ -13,7 +13,7 @@ beforeEach(() => probe.runDescribe.mockReset());
 
 const adapter = new GradleModuleDiscoveryAdapter();
 const rel = (root: string, dirs: (string | undefined)[]): (string | undefined)[] =>
-  dirs.map((dir) => (dir === undefined ? undefined : dir === root ? '.' : dir.slice(root.length + 1)));
+  dirs.map((dir) => (dir === undefined ? undefined : dir === root ? '.' : dir.slice(root.length + 1).replace(/\\/g, '/')));
 
 describe('Gradle repository root (GRD-08 to GRD-17)', () => {
   it('GRD-08 A subproject resolves to the root of its build', () => {
