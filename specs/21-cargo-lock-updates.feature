@@ -97,6 +97,14 @@ Feature: Lock-file-only updates for Cargo
       When a manifest and Cargo.lock changed
       Then the check covers the changed crates and their dependents only
 
+  Rule: A pinned release that was yanked is reported, not hidden
+
+    Scenario: CLOCK-26 A locked release that was yanked, with nothing allowed to replace it, is reported
+      Given a requirement of "1" and Cargo.lock holding 1.0.15, which the index marks as yanked
+      And no allowed release is newer
+      Then "itoa" is skipped with the reason "locked-version-yanked" and names 1.0.15
+      And no candidate is offered
+
   Rule: The shared layers handle the lock action
 
     Scenario: CLOCK-19 A request takes the newest allowed release, or another one the requirement allows

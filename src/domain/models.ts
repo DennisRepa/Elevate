@@ -152,7 +152,9 @@ export type SkipReason =
   /** A `catalog:` reference that the pnpm-workspace.yaml cannot resolve. */
   | 'catalog-unresolved'
   /** Cargo: the newest version needs a newer Rust than the project declares. */
-  | 'incompatible-rust-version';
+  | 'incompatible-rust-version'
+  /** Cargo: Cargo.lock pins a release that was yanked, and no allowed release can replace it. */
+  | 'locked-version-yanked';
 
 /** A dependency that was deliberately not offered, with the reason. */
 export interface SkippedDependency {
