@@ -60,7 +60,7 @@
     "url": "https://ko-fi.com/dennisrepa"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "^22.22.2 || ^24.15.0 || >=26"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",
