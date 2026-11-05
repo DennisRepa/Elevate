@@ -4,6 +4,7 @@
 
 import type { EcosystemStrategy, TabLabels } from '../../domain/ecosystem-strategy.js';
 import type { Ecosystem } from '../../domain/models.js';
+import { detectPackageManager } from './npm-package-manager.js';
 import { NpmModuleDiscoveryAdapter } from './npm-discovery.js';
 import { NpmRegistryAdapter } from './npm-registry.js';
 import { NpmDependencyAdapter } from './npm-scanner.js';
@@ -13,6 +14,14 @@ import { NpmVerificationAdapter } from './npm-verifier.js';
 export class NpmEcosystemStrategy implements EcosystemStrategy {
   readonly ecosystem: Ecosystem = 'npm';
   readonly displayName = 'Node / npm';
+
+  packageManagerFor(rootDir: string): string {
+    return detectPackageManager(rootDir).name;
+  }
+
+  displayNameFor(rootDir: string): string {
+    return detectPackageManager(rootDir).name === 'pnpm' ? 'Node / pnpm' : 'Node / npm';
+  }
   readonly icon = '📦';
   readonly manifestFile = 'package.json';
 

@@ -9,6 +9,7 @@
 
 import { runCommand } from '../shared/process.js';
 import { npmScopeOf } from '../../domain/origin.js';
+import { commands, driverFor } from './npm-commands.js';
 
 export interface NpmRegistryConfig {
   /** Default registry for unscoped packages and scopes without a mapping. */
@@ -20,7 +21,7 @@ export interface NpmRegistryConfig {
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org/';
 
 /** Hosts of public npm registries. */
-const PUBLIC_NPM_HOSTS = new Set(['registry.npmjs.org', 'registry.npmjs.com', 'registry.yarnpkg.com']);
+const PUBLIC_NPM_HOSTS = new Set(['registry.npmjs.org', 'registry.npmjs.com', 'registry.yarnpkg.com', 'npm.jsr.io']);
 
 export class NpmConfigReader {
   private readonly cache = new Map<string, Promise<NpmRegistryConfig>>();
@@ -65,7 +66,8 @@ export function parseNpmConfig(json: Record<string, unknown>): NpmRegistryConfig
 
 async function loadConfig(cwd: string): Promise<NpmRegistryConfig> {
   try {
-    const result = await runCommand('npm', ['config', 'list', '--json'], { cwd, timeoutMs: 15_000 });
+    const { command, args } = commands.config(driverFor(cwd));
+    const result = await runCommand(command, args, { cwd, timeoutMs: 15_000 });
     if (result.exitCode !== 0) return parseNpmConfig({});
     return parseNpmConfig(JSON.parse(result.stdout) as Record<string, unknown>);
   } catch {

@@ -31,6 +31,8 @@ export const en: Translations = {
         'managed-externally': 'version is managed outside this repository',
         'declaration-mismatch': 'version location is ambiguous',
         'invalid-name': 'invalid package name',
+        'not-linked': 'workspace package that pnpm does not link without the workspace: protocol',
+        'catalog-unresolved': 'catalog entry could not be resolved',
       })[reason],
   },
   badges: {

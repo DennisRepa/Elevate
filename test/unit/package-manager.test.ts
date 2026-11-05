@@ -13,6 +13,7 @@ vi.mock('../../src/adapters/shared/process.js', async (importOriginal) => {
 
 import {
   UnsupportedPackageManagerError,
+  assertSupportedPackageManager,
   detectPackageManager,
 } from '../../src/adapters/npm/npm-package-manager.js';
 import { NpmDependencyAdapter } from '../../src/adapters/npm/npm-scanner.js';
@@ -82,13 +83,14 @@ describe('package manager detection', () => {
     const packageDir = join(root, 'packages', 'a');
     expect(detectPackageManager(packageDir)).toEqual({ name: 'pnpm', evidence: 'pnpm-lock.yaml' });
 
+    process_.runCommand.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '', timedOut: false });
     const module = npmModule(packageDir);
     const context = createScanContext([module], { rootDir: packageDir, internalScopes: [] }, 'stable');
     const scanner = new NpmDependencyAdapter(new NpmRegistryAdapter(), new NpmConfigReader());
-    const failure = await scanner.scan(module, context).catch((err: unknown) => err);
-    expect(failure).toBeInstanceOf(UnsupportedPackageManagerError);
-    expect((failure as Error).message.startsWith('This repository is managed by pnpm')).toBe(true);
-    expect(process_.runCommand).not.toHaveBeenCalled();
+    await scanner.scan(module, context);
+    const started = process_.runCommand.mock.calls.map((call) => call[0]);
+    expect(started.length).toBeGreaterThan(0);
+    expect(new Set(started)).toEqual(new Set(['pnpm']));
   });
 
   it('PM-14 Lockfiles outside the checkout are ignored', () => {
@@ -114,16 +116,15 @@ describe('package manager detection', () => {
   });
 });
 
-describe('refusal in a repository not managed by npm', () => {
+describe('refusal in a repository Yarn or Bun', () => {
   const MESSAGE =
-    "This repository is managed by pnpm (pnpm-lock.yaml). Elevate supports npm for Node.js projects; using it here would create an npm lockfile next to pnpm's. Nothing was changed.";
+    "This repository is managed by yarn (yarn.lock). Elevate supports npm and pnpm for Node.js projects; using either here would create a lockfile next to yarn's. Nothing was changed.";
   const PACKAGE_JSON = '{"name": "root", "version": "1.0.0", "dependencies": {"left-pad": "^1.1.0"}}';
 
-  function pnpmTree() {
+  function yarnTree() {
     return makeTree({
       'package.json': PACKAGE_JSON,
-      'pnpm-lock.yaml': "lockfileVersion: '9.0'",
-      'pnpm-workspace.yaml': 'packages: ["packages/*"]',
+      'yarn.lock': '# yarn lockfile v1',
       'packages/a/package.json': '{"name": "a", "version": "1.0.0"}',
     });
   }
@@ -134,7 +135,7 @@ describe('refusal in a repository not managed by npm', () => {
   };
 
   it('PM-05 A scan is refused with an explanation', async () => {
-    const root = pnpmTree();
+    const root = yarnTree();
     const module = npmModule(root);
     const context = createScanContext([module], { rootDir: root, internalScopes: [] }, 'stable');
 
@@ -149,56 +150,87 @@ describe('refusal in a repository not managed by npm', () => {
   });
 
   it('PM-06 An update is refused before anything is written', async () => {
-    const root = pnpmTree();
+    const root = yarnTree();
     const candidate = npmCandidate('left-pad', '^1.1.0', '^1.3.0');
 
     const failure = await new NpmUpdaterAdapter()
       .applyUpdates(npmModule(root), root, [candidate], () => {})
       .catch((err: unknown) => err);
     expect(failure).toBeInstanceOf(InstallError);
-    expect((failure as Error).message.startsWith('This repository is managed by pnpm')).toBe(true);
+    expect((failure as Error).message.startsWith('This repository is managed by yarn')).toBe(true);
     expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(PACKAGE_JSON);
     expect(existsSync(join(root, 'package-lock.json'))).toBe(false);
+    expect(existsSync(join(root, 'pnpm-lock.yaml'))).toBe(false);
     expect(existsSync(join(root, 'node_modules'))).toBe(false);
     noProcessStarted();
   });
 
   it('PM-07 The update workflow fails cleanly and does not run npm while rolling back', async () => {
-    const root = pnpmTree();
+    const root = yarnTree();
     const candidate = npmCandidate('left-pad', '^1.1.0', '^1.3.0');
 
     const summary = await runUpdateWorkflow(EcosystemFactory.getStrategy('npm'), npmModule(root), root, [candidate]);
     expect(summary.rolledBack).toBe(true);
-    expect(summary.failure).toContain('managed by pnpm');
+    expect(summary.failure).toContain('managed by yarn');
     expect(summary.updatedCount).toBe(0);
     expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(PACKAGE_JSON);
     expect(existsSync(join(root, 'package-lock.json'))).toBe(false);
+    expect(existsSync(join(root, 'pnpm-lock.yaml'))).toBe(false);
     expect(existsSync(join(root, 'node_modules'))).toBe(false);
     noProcessStarted();
   });
 
   it('PM-08 The default verification is refused instead of running npm ls', async () => {
-    const root = pnpmTree();
+    const root = yarnTree();
     const result = await new NpmVerificationAdapter().verify(npmModule(root), root);
     expect(result.status).toBe('warn');
-    expect(result.details.startsWith('This repository is managed by pnpm')).toBe(true);
+    expect(result.details.startsWith('This repository is managed by yarn')).toBe(true);
     noProcessStarted();
   });
 
   it('PM-09 A custom verification script still runs', async () => {
-    const root = pnpmTree();
+    const root = yarnTree();
     const result = await new NpmVerificationAdapter().verify(npmModule(root), root, {
       customScript: 'node -e "process.exit(0)"',
     });
     expect(result.status).toBe('clean');
   });
+
+  it.each([
+    ['yarn.lock', 'yarn'],
+    ['.yarnrc.yml', 'yarn'],
+    ['bun.lock', 'bun'],
+    ['bun.lockb', 'bun'],
+  ])('PM-17 Yarn and Bun are refused alike, by name and evidence: %s', async (file, manager) => {
+    const root = makeTree({ 'package.json': PLAIN, [file]: '' });
+    const module = npmModule(root);
+    const context = createScanContext([module], { rootDir: root, internalScopes: [] }, 'stable');
+    const scanner = new NpmDependencyAdapter(new NpmRegistryAdapter(), new NpmConfigReader());
+    const failure = await scanner.scan(module, context).catch((err: unknown) => err);
+    expect(failure).toBeInstanceOf(UnsupportedPackageManagerError);
+    expect((failure as Error).message).toMatch(
+      new RegExp(`^This repository is managed by ${manager} \\(${file.replace('.', '\\.')}\\)\\. Elevate supports npm and pnpm for Node.js projects;`),
+    );
+    noProcessStarted();
+  });
+});
+
+describe('npm and pnpm repositories are supported', () => {
+  it.each([
+    ['package-lock.json', 'npm'],
+    ['pnpm-lock.yaml', 'pnpm'],
+    ['pnpm-workspace.yaml', 'pnpm'],
+  ])('PM-16 A repository managed by npm or pnpm is not refused: %s', (file, manager) => {
+    const root = makeTree({ 'package.json': PLAIN, [file]: '' });
+    expect(assertSupportedPackageManager(root)).toBe(manager);
+  });
 });
 
 describe('everything that does not act as npm keeps working', () => {
-  it('PM-11 Maven modules in a pnpm repository are still discovered', async () => {
+  it('PM-11 Maven modules in a Yarn repository are still discovered', async () => {
     const root = makeTree({
       'package.json': PLAIN,
-      'pnpm-lock.yaml': "lockfileVersion: '9.0'",
+      'yarn.lock': '# yarn lockfile v1',
       'backend/pom.xml': pom('<groupId>g</groupId><artifactId>backend</artifactId><version>1</version>'),
     });
     const modules = await new MavenModuleDiscoveryAdapter().discover(root);
@@ -206,7 +238,7 @@ describe('everything that does not act as npm keeps working', () => {
   });
 
   it('PM-12 Version queries are not blocked', async () => {
-    const dir = makeTree({ 'pnpm-lock.yaml': "lockfileVersion: '9.0'" });
+    const dir = makeTree({ 'yarn.lock': '# yarn lockfile v1' });
     process_.runCommand.mockResolvedValue({ exitCode: 0, stdout: '["1.0.0", "1.1.0"]', stderr: '', timedOut: false });
 
     const coordinate = { identifier: 'left-pad', artifact: 'left-pad', ecosystem: 'npm' as const };

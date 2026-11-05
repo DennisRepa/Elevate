@@ -35,9 +35,10 @@
 | Ecosystem | Package Manager | Manifest File | Primary Registry | Monorepo Support | Verification Method | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
 | **Node.js** (JS / TS) | `npm` | `package.json` | Configured npm registry (`.npmrc`) | Root & npm Workspaces (glob patterns) | `npm install` + `npm ls` | ✅ Supported |
+| **Node.js** (JS / TS) | `pnpm` (9 – 12) | `package.json` | Registry configured for pnpm (`.npmrc`) | Root & `pnpm-workspace.yaml` (patterns, catalogs) | `pnpm install` + `pnpm install --frozen-lockfile --lockfile-only` | ✅ Supported |
 | **Java** (JVM) | `Maven` (`mvnw` / `mvn`) | `pom.xml` | Repositories & mirrors from Maven's own settings | Root POM, reactor & parent POMs | `mvn test-compile -amd` | ✅ Supported |
 
-> **Planned:** Support for Python (`pip`, `poetry`, `uv`), `pnpm`, `yarn`, and `Gradle` is on the roadmap.
+> **Planned:** Support for Python (`pip`, `poetry`, `uv`), `yarn`, and `Gradle` is on the roadmap.
 
 ---
 
@@ -209,7 +210,8 @@ Detailed parameter references are available in [`docs/en.md`](./docs/en.md) and 
 
 ## 🧭 Scope and known limits
 
-* **npm only for Node.js.** Elevate drives npm. Repositories managed by pnpm, Yarn or Bun are refused (scans and updates say why and change nothing); Maven modules in the same repository still work.
+* **npm and pnpm for Node.js.** Elevate drives npm and pnpm (pnpm 9 to 12, `lockfileVersion` 9). Repositories managed by Yarn or Bun are refused (scans and updates say why and change nothing); Maven modules in the same repository still work.
+* **pnpm specifics.** `catalog:` entries are updated where they are declared, in `pnpm-workspace.yaml`. A plain range on a workspace module (`^1.0.0`) is listed as *not linked* and never rewritten to `workspace:`, because pnpm resolves it from the registry. Elevate does not read pnpm settings such as `minimumReleaseAge` or the approval of build scripts, so pnpm may refuse an offered version; the update is then rolled back with pnpm's message. pnpm 8 and older, Windows and `shared-workspace-lockfile=false` are not covered.
 * **Broken configuration stops Elevate.** An `elevate.config.json` that is not valid JSON, not an object, or whose `internalScopes` is not a list of strings is reported and Elevate exits with code `1`, because ignoring it would switch off the protection of internal packages. Without any configuration file Elevate works with defaults.
 * **Dependency sections.** `dependencies`, `devDependencies` and `optionalDependencies` are covered. `peerDependencies` and `overrides` are never changed.
 * **Maven.** Maven plugin versions and declarations inside `<profiles>` are not offered. Dependencies whose version is declared outside the repository (an external parent or BOM) are listed as *not offered* with the reason.

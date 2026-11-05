@@ -10,6 +10,7 @@ import type { RegistryEndpoint, RegistryPort } from '../../domain/ports.js';
 import type { DependencyCoordinate, ReleaseChannel } from '../../domain/models.js';
 import { runCommand } from '../shared/process.js';
 import { NpmConfigReader, isPublicNpmRegistry } from './npm-config.js';
+import { commands, driverFor } from './npm-commands.js';
 
 const LOOKUP_TIMEOUT_MS = 15_000;
 
@@ -62,10 +63,11 @@ export class NpmRegistryAdapter implements RegistryPort {
     return list.map(String).reverse();
   }
 
-  /** Runs `npm view <name> <field> --json`; resolves null on any failure. */
+  /** Runs `npm view <name> <field> --json` (`pnpm view` in a pnpm repository); resolves null on any failure. */
   protected async view(name: string, field: string, cwd: string): Promise<unknown> {
     try {
-      const result = await runCommand('npm', ['view', name, field, '--json'], {
+      const { command, args } = commands.view(driverFor(cwd), name, field);
+      const result = await runCommand(command, args, {
         cwd,
         timeoutMs: LOOKUP_TIMEOUT_MS,
       });
