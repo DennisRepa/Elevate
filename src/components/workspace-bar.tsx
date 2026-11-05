@@ -10,14 +10,17 @@ interface Props {
   internalScopes: string[];
   strategy: EcosystemStrategy;
   t: Translations;
+  /** What discovery could not load; shown so a missing module is explained. */
+  diagnostics?: string[];
 }
 
 /** Shows the active module and the configured internal scopes. */
-export const WorkspaceBar: React.FC<Props> = ({ module, internalScopes, strategy, t }) => {
+export const WorkspaceBar: React.FC<Props> = ({ module, internalScopes, strategy, t, diagnostics = [] }) => {
   const scopeHint =
     internalScopes.length > 0 ? t.status.internalScopes(internalScopes) : t.status.noInternalScopes;
 
   return (
+    <Box flexDirection="column">
     <Box marginY={1} justifyContent="space-between" alignItems="center">
       <Box alignItems="center" flexShrink={1}>
         <Text bold>📍 {strategy.icon} {t.workspace.label}: </Text>
@@ -32,6 +35,10 @@ export const WorkspaceBar: React.FC<Props> = ({ module, internalScopes, strategy
         <Text color={theme.colors.brandLight} bold>[W]</Text>
         <Text color={theme.colors.muted}> {t.workspace.switchHint.replace('[W]', '').trim()}</Text>
       </Box>
+    </Box>
+    {diagnostics.slice(0, 2).map((d) => (
+      <Text key={d} color={theme.colors.danger} wrap="truncate-end">⚠ {d.split('\n')[0]}</Text>
+    ))}
     </Box>
   );
 };

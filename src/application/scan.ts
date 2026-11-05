@@ -8,6 +8,15 @@ import type { EcosystemStrategy } from '../domain/ecosystem-strategy.js';
 import type { ScanContext } from '../domain/ports.js';
 import { buildWorkspaceIndex } from '../domain/origin.js';
 
+/** Discovers the modules of an ecosystem together with the problems that did not stop discovery. */
+export async function discoverModules(
+  strategy: EcosystemStrategy,
+  rootDir: string,
+): Promise<{ modules: ProjectModule[]; diagnostics: string[] }> {
+  const modules = await strategy.discovery.discover(rootDir);
+  return { modules, diagnostics: strategy.discovery.diagnostics?.() ?? [] };
+}
+
 /** Builds the scan context for a set of discovered modules. */
 export function createScanContext(
   modules: readonly ProjectModule[],

@@ -25,6 +25,8 @@
     "npm",
     "pnpm",
     "maven",
+    "cargo",
+    "rust",
     "mcp",
     "agentic"
   ],
@@ -68,6 +70,7 @@
     "react": "^19.0.0",
     "saxes": "^6.0.0",
     "semver": "^7.6.3",
+    "toml-eslint-parser": "^1.0.3",
     "tsx": "^4.19.3",
     "yaml": "^2.9.1"
   },

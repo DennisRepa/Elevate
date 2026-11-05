@@ -10,20 +10,21 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { ElevateConfig } from '../config.js';
-import type { ProjectModule, ReleaseChannel } from '../domain/models.js';
+import type { Ecosystem, ProjectModule, ReleaseChannel } from '../domain/models.js';
 import { EcosystemFactory } from '../domain/ecosystem-factory.js';
 import { classifyOrigin } from '../domain/origin.js';
 import { isPreReleaseVersion, extractPreReleaseTag } from '../domain/versions.js';
-import { candidateToJson, createScanContext, findModule, scanModule, scanModules } from '../application/scan.js';
+import { candidateToJson, createScanContext, discoverModules, findModule, scanModule, scanModules } from '../application/scan.js';
 import { describeSkip } from '../application/describe.js';
 import { selectRequested } from '../application/update-selection.js';
 import type { UpdateRequest } from '../application/update-selection.js';
+import { VERSION } from '../version.js';
 import { runUpdateWorkflow } from '../application/update-workflow.js';
 import { coordinateFromIdentifier, lookupVersions } from '../application/version-lookup.js';
 
 const ECOSYSTEM_PROPERTY = {
   type: 'string',
-  enum: ['npm', 'maven'],
+  enum: EcosystemFactory.getAvailableEcosystems(),
   description: 'Target ecosystem (default: npm)',
 };
 
@@ -31,7 +32,7 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
   const server = new Server(
     {
       name: 'elevate-mcp',
-      version: '1.2.0',
+      version: VERSION,
     },
     {
       capabilities: {
@@ -47,7 +48,7 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
         {
           name: 'elevate_discover_modules',
           description:
-            'Discovers all repository modules and workspaces for Node/npm (package.json) or Java/Maven (pom.xml).',
+            'Discovers all repository modules and workspaces for Node/npm (package.json), Java/Maven (pom.xml) or Rust/Cargo (Cargo.toml).',
           inputSchema: {
             type: 'object',
             properties: {
@@ -95,7 +96,7 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
               ecosystem: ECOSYSTEM_PROPERTY,
               identifier: {
                 type: 'string',
-                description: 'Package identifier (npm: chalk, maven: org.slf4j:slf4j-api)',
+                description: 'Package identifier (npm: chalk, maven: org.slf4j:slf4j-api, cargo: serde)',
               },
             },
             required: ['identifier'],
@@ -172,7 +173,7 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
   // 2. Tool execution handlers
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
-    const ecosystem = (args.ecosystem as 'npm' | 'maven') || 'npm';
+    const ecosystem = (args.ecosystem as Ecosystem) || 'npm';
     const strategy = EcosystemFactory.getStrategy(ecosystem);
     const reply = (value: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
 
@@ -185,12 +186,13 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
     try {
       // ── Tool 1: elevate_discover_modules ──
       if (name === 'elevate_discover_modules') {
-        const modules = await strategy.discovery.discover(config.rootDir);
+        const { modules, diagnostics } = await discoverModules(strategy, config.rootDir);
         const packageManager = strategy.packageManagerFor?.(config.rootDir);
         return reply({
           ecosystem,
           ...(packageManager ? { packageManager } : {}),
           count: modules.length,
+          diagnostics,
           modules: modules.map((m) => ({
             id: m.id,
             name: m.name,

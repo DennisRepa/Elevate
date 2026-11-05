@@ -1,12 +1,13 @@
 /**
  * 🪶 Elevate — Ecosystem Factory (Factory Pattern)
  *
- * Creates and caches the ecosystem strategies for Node/npm and Java/Maven.
+ * Creates and caches the ecosystem strategies for Node/npm, Java/Maven and Rust/Cargo.
  */
 
 import type { Ecosystem } from './models.js';
 import type { EcosystemStrategy } from './ecosystem-strategy.js';
 import { NpmEcosystemStrategy } from '../adapters/npm/npm-strategy.js';
+import { CargoEcosystemStrategy } from '../adapters/cargo/cargo-strategy.js';
 import { MavenEcosystemStrategy } from '../adapters/maven/maven-strategy.js';
 import type { MavenPluginVersions } from '../adapters/maven/maven-resolution.js';
 
@@ -35,6 +36,8 @@ export class EcosystemFactory {
     if (!strategy) {
       if (ecosystem === 'maven') {
         strategy = new MavenEcosystemStrategy(this.settings.mavenPlugins);
+      } else if (ecosystem === 'cargo') {
+        strategy = new CargoEcosystemStrategy();
       } else {
         strategy = new NpmEcosystemStrategy();
       }
@@ -45,6 +48,12 @@ export class EcosystemFactory {
 
   /** All supported ecosystems. */
   static getAvailableEcosystems(): Ecosystem[] {
-    return ['npm', 'maven'];
+    return ['npm', 'maven', 'cargo'];
+  }
+
+  /** The ecosystem after `current`, for the dashboard's ecosystem switch. */
+  static next(current: Ecosystem): Ecosystem {
+    const all = this.getAvailableEcosystems();
+    return all[(all.indexOf(current) + 1) % all.length]!;
   }
 }

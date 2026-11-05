@@ -40,15 +40,15 @@ export const App: React.FC<AppProps> = ({ config }) => {
   const [modalIndex, setModalIndex] = useState(0);
   const [versionPickerCandidate, setVersionPickerCandidate] = useState<UpdateCandidate | null>(null);
 
-  // 1. Ecosystem selection (npm ⇄ Maven via strategy pattern)
+  // 1. Ecosystem selection (npm → Maven → Cargo via strategy pattern)
   const [ecosystem, setEcosystem] = useState<Ecosystem>('npm');
   const strategy = useMemo(() => EcosystemFactory.getStrategy(ecosystem), [ecosystem]);
 
-  const nextEcosystem: Ecosystem = ecosystem === 'npm' ? 'maven' : 'npm';
+  const nextEcosystem: Ecosystem = EcosystemFactory.next(ecosystem);
   const nextStrategy = useMemo(() => EcosystemFactory.getStrategy(nextEcosystem), [nextEcosystem]);
 
   const toggleEcosystem = useCallback(() => {
-    setEcosystem((prev) => (prev === 'npm' ? 'maven' : 'npm'));
+    setEcosystem((prev) => EcosystemFactory.next(prev));
   }, []);
 
   // 2. i18n Hook
@@ -238,6 +238,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
                 internalScopes={config.internalScopes}
                 strategy={strategy}
                 t={t}
+                diagnostics={ws.diagnostics}
               />
               <TabBar
                 activeTab={pkg.activeTab}

@@ -158,6 +158,12 @@ export const VersionModal: React.FC<Props> = ({
         </Text>
       </Box>
 
+      {candidate.sharedWith && candidate.sharedWith.length > 0 && (
+        <Box marginBottom={1}>
+          <Text color={theme.colors.warning}>{t.versionModal.alsoChanges(candidate.sharedWith)}</Text>
+        </Box>
+      )}
+
       {/* 2. Filter field */}
       <Box
         borderStyle="single"

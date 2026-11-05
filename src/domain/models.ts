@@ -5,7 +5,7 @@
  */
 
 /** Supported ecosystems / package managers. */
-export type Ecosystem = 'npm' | 'maven';
+export type Ecosystem = 'npm' | 'maven' | 'cargo';
 
 /** A module (npm workspace, Maven project) inside the repository. */
 export interface ProjectModule {
@@ -42,6 +42,8 @@ export interface DependencyCoordinate {
   /** Artifact or package name. */
   artifact: string;
   ecosystem: Ecosystem;
+  /** Cargo: index URL of the alternative registry the crate comes from. */
+  registry?: string;
 }
 
 /**
@@ -121,6 +123,8 @@ export interface UpdateCandidate {
    * the registry is queried on demand.
    */
   availableVersions?: string[];
+  /** Short note on where the dependency is declared, e.g. `build` or `cfg(unix)` (Cargo). */
+  qualifier?: string;
   /** Whether the target is a pre-release (alpha, beta, RC, milestone, snapshot). */
   isPreRelease?: boolean;
   /** Short pre-release label, e.g. "BETA", "RC", "M2". */
@@ -144,7 +148,9 @@ export type SkipReason =
   /** pnpm resolves a plain range on a workspace module from the registry, not from the workspace. */
   | 'not-linked'
   /** A `catalog:` reference that the pnpm-workspace.yaml cannot resolve. */
-  | 'catalog-unresolved';
+  | 'catalog-unresolved'
+  /** Cargo: the newest version needs a newer Rust than the project declares. */
+  | 'incompatible-rust-version';
 
 /** A dependency that was deliberately not offered, with the reason. */
 export interface SkippedDependency {
