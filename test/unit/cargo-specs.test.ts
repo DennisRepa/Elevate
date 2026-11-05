@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '../..');
-const PREFIXES = ['CDISC', 'CREQ', 'CDECL', 'CSCAN', 'CALIGN', 'CORIG', 'CREG', 'CCFG', 'CUPD', 'CVER', 'CWIN', 'CUI', 'CECO'];
+const PREFIXES = ['CDISC', 'CREQ', 'CDECL', 'CSCAN', 'CALIGN', 'CORIG', 'CREG', 'CCFG', 'CUPD', 'CVER', 'CWIN', 'CUI', 'CECO', 'CLOCK'];
 const ID = new RegExp(`\\b((?:${PREFIXES.join('|')})-\\d+)\\b`);
 
 /** IDs of the scenarios the Cargo feature files declare. */
@@ -50,7 +50,7 @@ describe('Cargo specifications', () => {
   it('the feature files exist and every scenario ID is unique', () => {
     const dir = join(ROOT, 'specs');
     const files = readdirSync(dir).filter((f) => /^\d+-cargo-.*\.feature$/.test(f));
-    expect(files.length).toBe(6);
+    expect(files.length).toBe(7);
     const all: string[] = [];
     for (const file of files) {
       for (const line of readFileSync(join(dir, file), 'utf8').split('\n')) {
