@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0](https://github.com/DennisRepa/Elevate/compare/v1.5.0...v1.6.0) (2026-11-05)
+
+
+### Features
+
+* **cargo:** apply lock-only updates and verify the whole workspace ([025f5b9](https://github.com/DennisRepa/Elevate/commit/025f5b9c1a74e83a778dca770ad23b55a74c44b9))
+* **cargo:** offer lock-only updates in the scan ([baec221](https://github.com/DennisRepa/Elevate/commit/baec221aea303c8abb2a478121d6d10635db1559))
+* **cargo:** select and show lock-only updates in the CLI, MCP and dashboard ([0d3123d](https://github.com/DennisRepa/Elevate/commit/0d3123d9912e502adbbf07b37879ea3a03a9cc7a))
+* **cargo:** update Cargo.lock alone when the requirement already allows a newer release ([f7c57d3](https://github.com/DennisRepa/Elevate/commit/f7c57d3cbaaf5e9b9aabe854b19e7f6f73dc5724))
+
+
+### Documentation
+
+* **cargo:** document lock-file-only updates ([b13e7e9](https://github.com/DennisRepa/Elevate/commit/b13e7e9632396ec285a39f736c6ceb20be3ab6df))
+* **specs:** specify lock-file-only updates for Cargo ([cbcbbec](https://github.com/DennisRepa/Elevate/commit/cbcbbecd7de9a81d3a6d5b0ff5a29395680ae713))
+
 ## [1.5.0](https://github.com/DennisRepa/Elevate/compare/v1.4.0...v1.5.0) (2026-11-05)
 
 
