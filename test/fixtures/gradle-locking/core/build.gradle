@@ -1,0 +1,10 @@
+plugins { id 'java-library' }
+
+repositories {
+    maven { url = uri("${rootDir}/repo") }
+}
+
+dependencies {
+    // core gets the library through app: its lock follows the version app declares
+    runtimeOnly project(':app')
+}

@@ -1,0 +1,9 @@
+plugins { id 'java' }
+
+repositories {
+    maven { url = uri("${rootDir}/repo") }
+}
+
+dependencies {
+    implementation 'com.acme:lib:1.0'
+}

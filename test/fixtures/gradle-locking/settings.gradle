@@ -1,0 +1,2 @@
+rootProject.name = 'locking'
+include 'app', 'core'
