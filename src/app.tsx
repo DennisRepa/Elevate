@@ -238,6 +238,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
                 internalScopes={config.internalScopes}
                 strategy={strategy}
                 t={t}
+                diagnostics={ws.diagnostics}
               />
               <TabBar
                 activeTab={pkg.activeTab}

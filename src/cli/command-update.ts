@@ -16,7 +16,7 @@ import type { ElevateConfig } from '../config.js';
 import type { UpdateCandidate } from '../domain/models.js';
 import { EcosystemFactory } from '../domain/ecosystem-factory.js';
 import { classifyOrigin } from '../domain/origin.js';
-import { createScanContext, findModule, scanModule } from '../application/scan.js';
+import { createScanContext, discoverModules, findModule, scanModule } from '../application/scan.js';
 import { UpdateSelectionError, selectAll, selectRequested } from '../application/update-selection.js';
 import type { UpdateRequest } from '../application/update-selection.js';
 import { runUpdateWorkflow } from '../application/update-workflow.js';
@@ -30,7 +30,8 @@ export async function handleUpdateCommand(options: CliOptions, config: ElevateCo
     return code;
   };
 
-  const modules = await strategy.discovery.discover(config.rootDir);
+  const { modules, diagnostics } = await discoverModules(strategy, config.rootDir);
+  for (const problem of diagnostics) console.error(`⚠️  ${problem}`);
   if (modules.length === 0) return fail(`No ${strategy.displayName} modules found.`);
 
   const targetModule = options.module ? findModule(modules, options.module) : modules[0];

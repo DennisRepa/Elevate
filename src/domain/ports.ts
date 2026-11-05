@@ -19,6 +19,11 @@ import type { WorkspaceIndex } from './origin.js';
 export interface ModuleDiscoveryPort {
   discover(rootDir: string): Promise<ProjectModule[]>;
   /**
+   * Problems of the most recent `discover` run that did not stop it, e.g. one
+   * workspace whose tool run failed while others were found. Empty when none.
+   */
+  diagnostics?(): string[];
+  /**
    * Proposes the repository root this ecosystem would use when started in
    * `startDir`: the outermost directory it can relate `startDir` to. Only
    * `startDir` and its ancestors up to and including `boundaryDir` are

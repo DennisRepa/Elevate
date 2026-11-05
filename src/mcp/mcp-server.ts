@@ -14,7 +14,7 @@ import type { ProjectModule, ReleaseChannel } from '../domain/models.js';
 import { EcosystemFactory } from '../domain/ecosystem-factory.js';
 import { classifyOrigin } from '../domain/origin.js';
 import { isPreReleaseVersion, extractPreReleaseTag } from '../domain/versions.js';
-import { candidateToJson, createScanContext, findModule, scanModule, scanModules } from '../application/scan.js';
+import { candidateToJson, createScanContext, discoverModules, findModule, scanModule, scanModules } from '../application/scan.js';
 import { describeSkip } from '../application/describe.js';
 import { selectRequested } from '../application/update-selection.js';
 import type { UpdateRequest } from '../application/update-selection.js';
@@ -186,12 +186,13 @@ export async function startMcpServer(config: ElevateConfig): Promise<void> {
     try {
       // ── Tool 1: elevate_discover_modules ──
       if (name === 'elevate_discover_modules') {
-        const modules = await strategy.discovery.discover(config.rootDir);
+        const { modules, diagnostics } = await discoverModules(strategy, config.rootDir);
         const packageManager = strategy.packageManagerFor?.(config.rootDir);
         return reply({
           ecosystem,
           ...(packageManager ? { packageManager } : {}),
           count: modules.length,
+          diagnostics,
           modules: modules.map((m) => ({
             id: m.id,
             name: m.name,
