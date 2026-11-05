@@ -1,13 +1,15 @@
 name: Release
 
-# Releases are tag-driven:
-#   npm version <patch|minor|major>   # bumps package.json, turns "Unreleased" in CHANGELOG.md
-#                                     # into the new version and creates tag vX.Y.Z
-#   git push --follow-tags
+# Called by release-please.yml after the release pull request was merged. The tag
+# and the GitHub release (with its notes) already exist; this workflow verifies the
+# tag, builds the binaries and attaches them to the release.
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag, e.g. v1.4.0
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -18,16 +20,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
       - name: Compare versions
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
           PKG="v$(node -p "require('./package.json').version")"
-          if [ "$PKG" != "${GITHUB_REF_NAME}" ]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${PKG}"
+          if [ "$PKG" != "${TAG}" ]; then
+            echo "::error::Tag ${TAG} does not match package.json version ${PKG}"
             exit 1
           fi
-
-      - name: Changelog has notes for this version
-        run: node scripts/changelog.mjs notes "${GITHUB_REF_NAME#v}" > /dev/null
 
   build-binaries:
     name: Build Binary (${{ matrix.os }}-${{ matrix.arch }})
@@ -54,6 +57,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
 
       - uses: actions/setup-node@v5
         with:
@@ -88,11 +93,6 @@ jobs:
     needs: build-binaries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-
-      - name: Release notes from CHANGELOG.md
-        run: node scripts/changelog.mjs notes "${GITHUB_REF_NAME#v}" > release-notes.md
-
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
@@ -100,6 +100,5 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag }}
           files: release-assets/*
-          body_path: release-notes.md

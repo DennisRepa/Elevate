@@ -2,8 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
-
 ## 1.3.0 (2026-10-06)
 
 Elevate now understands how the modules of a repository depend on each other. Internal dependencies are aligned instead of hidden and are never looked up on public registries, Elevate works from any directory of a repository, and it refuses to act where it would do harm.
