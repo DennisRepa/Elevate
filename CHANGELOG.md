@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0](https://github.com/DennisRepa/Elevate/compare/v1.7.0...v1.8.0) (2026-11-05)
+
+
+### Features
+
+* **gradle:** add Gradle as an ecosystem ([3392130](https://github.com/DennisRepa/Elevate/commit/33921307da928f16f958aba8ea11eb6c47aef086))
+* **gradle:** discover Gradle builds and modules ([9b57e66](https://github.com/DennisRepa/Elevate/commit/9b57e664a3174839572e32942c9483d65ba70856))
+* **gradle:** locate version declarations in build scripts and catalogs ([516b4cc](https://github.com/DennisRepa/Elevate/commit/516b4cc2f08ba12d2aef5e700e93968306c75a38))
+* **gradle:** order versions like Gradle ([0315e98](https://github.com/DennisRepa/Elevate/commit/0315e982fcab18655ad9d674f1a79f4b54ef14dd))
+* **gradle:** plan version lookups per repository set ([9afbc33](https://github.com/DennisRepa/Elevate/commit/9afbc334f4aad7119140d55718e32518d77f038a))
+* **gradle:** register the Gradle ecosystem for scan, modules and versions ([4eba015](https://github.com/DennisRepa/Elevate/commit/4eba01532fc8a22c27f261706487424b8036d9b0))
+* **gradle:** run Gradle and probe a build with an init script ([8685e05](https://github.com/DennisRepa/Elevate/commit/8685e0586eadfc5e548d80ca07a60c8baa68e4f7))
+* **gradle:** scan Gradle modules and look up newer versions ([8c8fb40](https://github.com/DennisRepa/Elevate/commit/8c8fb40a15bab85f3e8d4c46bf2b2ccdd011cba3))
+* **gradle:** update Gradle builds and verify them with the build itself ([cd477b8](https://github.com/DennisRepa/Elevate/commit/cd477b89d3a6c59dcc82ce21d16c640e29193e04))
+
+
+### Fixes
+
+* **cli:** show the message of a fatal error instead of its stack trace ([fef77ec](https://github.com/DennisRepa/Elevate/commit/fef77ec6708b9aafbaa423087db444caadbc8e89))
+
+
+### Refactoring
+
+* **domain:** add the gradle ecosystem ([5baa196](https://github.com/DennisRepa/Elevate/commit/5baa1966da88183a2a8f9a84dead4c4628e29d38))
+* **process:** move relativeToCwd into the shared process helper ([32938d5](https://github.com/DennisRepa/Elevate/commit/32938d5b677354725fd1943eadb558c6342188d3))
+
+
+### Documentation
+
+* document Gradle support ([648c293](https://github.com/DennisRepa/Elevate/commit/648c293e0b64f225673c25170503572567031efc))
+* **specs:** specify Gradle support ([0f5c8b0](https://github.com/DennisRepa/Elevate/commit/0f5c8b08a7f4e37ee9ff6031414f4c3fcaf4fc4a))
+
 ## [1.7.0](https://github.com/DennisRepa/Elevate/compare/v1.6.0...v1.7.0) (2026-11-05)
 
 
