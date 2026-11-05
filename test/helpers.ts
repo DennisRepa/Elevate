@@ -2,7 +2,8 @@
  * Shared test helpers.
  */
 
-import { cpSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { cpSync, mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,4 +62,84 @@ export function npmCandidate(name: string, currentRange: string, newRange: strin
     origin: { kind: 'public' },
     action: 'update',
   };
+}
+
+/** The `maven-metadata.xml` of a module: the versions a repository lists. */
+export function mavenMetadata(group: string, name: string, versions: readonly string[]): string {
+  const list = versions.map((v) => `<version>${v}</version>`).join('');
+  return `<metadata><groupId>${group}</groupId><artifactId>${name}</artifactId><versioning><versions>${list}</versions></versioning></metadata>`;
+}
+
+/**
+ * Writes a Maven-layout file repository that lists the given versions of
+ * modules (`group:name` → versions). Only the listing is written: a lookup of
+ * versions asks for nothing else.
+ */
+export function writeVersionRepository(dir: string, modules: Record<string, readonly string[]>): void {
+  for (const [coordinate, versions] of Object.entries(modules)) {
+    const [group, name] = coordinate.split(':') as [string, string];
+    const folder = join(dir, ...group.split('.'), name);
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, 'maven-metadata.xml'), mavenMetadata(group, name, versions));
+  }
+}
+
+/** A module for `writeJarRepository`: its versions, each with the Java sources of its classes (path → source). */
+export interface JarModule {
+  group: string;
+  name: string;
+  versions: Record<string, Record<string, string>>;
+}
+
+/**
+ * Writes a Maven-layout file repository whose modules hold real jars. The tiny
+ * classes are compiled with the JDK (`javac`, `jar`), so a build that compiles
+ * against a version really sees its API. Each version gets its pom, and the
+ * module its `maven-metadata.xml` listing all versions.
+ */
+export function writeJarRepository(dir: string, modules: readonly JarModule[]): void {
+  for (const module of modules) {
+    const folder = join(dir, ...module.group.split('.'), module.name);
+    mkdirSync(folder, { recursive: true });
+    for (const [version, sources] of Object.entries(module.versions)) {
+      const work = mkdtempSync(join(tmpdir(), 'elevate-jar-'));
+      try {
+        const files = Object.entries(sources).map(([path, source]) => {
+          const file = join(work, 'src', path);
+          mkdirSync(dirname(file), { recursive: true });
+          writeFileSync(file, source);
+          return file;
+        });
+        mkdirSync(join(work, 'classes'), { recursive: true });
+        execFileSync('javac', ['-d', join(work, 'classes'), ...files], { stdio: 'pipe' });
+        mkdirSync(join(folder, version), { recursive: true });
+        execFileSync('jar', ['cf', join(folder, version, `${module.name}-${version}.jar`), '-C', join(work, 'classes'), '.'], {
+          stdio: 'pipe',
+        });
+        writeFileSync(
+          join(folder, version, `${module.name}-${version}.pom`),
+          `<project><modelVersion>4.0.0</modelVersion><groupId>${module.group}</groupId><artifactId>${module.name}</artifactId><version>${version}</version></project>`,
+        );
+      } finally {
+        rmSync(work, { recursive: true, force: true });
+      }
+    }
+    writeFileSync(join(folder, 'maven-metadata.xml'), mavenMetadata(module.group, module.name, Object.keys(module.versions)));
+  }
+}
+
+/** Runs `gradle` on the PATH in a directory and returns its exit code (for building the state of a fixture). */
+export function runGradleIn(cwd: string, ...args: string[]): { status: number | null; output: string } {
+  try {
+    const output = execFileSync('gradle', ['-q', '--console=plain', ...args], { cwd, encoding: 'utf8', stdio: 'pipe' });
+    return { status: 0, output };
+  } catch (err) {
+    const failure = err as { status: number | null; stdout?: string; stderr?: string };
+    return { status: failure.status, output: `${failure.stdout ?? ''}${failure.stderr ?? ''}` };
+  }
+}
+
+/** Reads a file of a tree. */
+export function readTreeFile(root: string, file: string): string {
+  return existsSync(join(root, file)) ? readFileSync(join(root, file), 'utf8') : '';
 }
