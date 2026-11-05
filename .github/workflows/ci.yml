@@ -152,6 +152,8 @@ jobs:
           - { gradle: '7.6.6', java: '17' }
           - { gradle: '8.14.3', java: '21' }
           - { gradle: '9.8.1', java: '21' }
+          # Gradle 9 runs on JDK 25; 8.14 and 7.6 do not.
+          - { gradle: '9.8.1', java: '25' }
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
