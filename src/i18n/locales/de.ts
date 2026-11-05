@@ -43,6 +43,7 @@ export const de: Translations = {
     prod: '(prod/compile)',
     align: '[Angleichen]',
     internal: '[Intern]',
+    lock: '[Lock]',
     shared: (count) => `[+${count} Crates]`,
   },
   status: {

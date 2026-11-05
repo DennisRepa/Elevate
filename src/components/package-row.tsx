@@ -54,6 +54,11 @@ export const PackageRow: React.FC<Props> = ({ item, isFocused, t }) => {
             {t.badges.align}{' '}
           </Text>
         )}
+        {item.action === 'lock' && (
+          <Text bold color={theme.colors.brandLight}>
+            {t.badges.lock}{' '}
+          </Text>
+        )}
         {item.origin.kind === 'private' && (
           <Text color={theme.colors.brandLight}>{t.badges.internal} </Text>
         )}
