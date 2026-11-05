@@ -162,7 +162,7 @@ export class CargoDependencyAdapter implements DependencyReaderPort {
       if (floor && held && semver.gt(held.version, floor)) {
         return { skipped: { identifier: dep.name, origin: origin.kind, reason: 'incompatible-rust-version', detail: ` (${held.version} needs Rust ${held.requires})` } };
       }
-      return null;
+      return yankedLock(dep, literal, origin, versions, locks);
     }
     const newRange = rewriteRequirement(literal, latest);
     // The requirement already allows the newest release: only the lock file can be behind.
@@ -213,7 +213,7 @@ function lockOutcome(
   const allowed = versions.filter((v) => satisfiesRequirement(requirement, v.version));
   const newer = eligibleVersions(allowed, options).filter((v) => semver.gt(v, locked));
   const latest = newer[0];
-  if (!latest) return null;
+  if (!latest) return yankedLock(dep, requirement, origin, versions, locks);
 
   const lockFile = join(metadata.workspace_root, 'Cargo.lock');
   return {
@@ -234,6 +234,22 @@ function lockOutcome(
       ...(common.qualifier ? { qualifier: common.qualifier } : {}),
     },
   };
+}
+
+/**
+ * The locked release was yanked and nothing the requirement allows can replace it. Cargo still
+ * builds from the lock file, so this is a warning rather than an update.
+ */
+function yankedLock(
+  dep: MetadataDependency,
+  requirement: string,
+  origin: DependencyOrigin,
+  versions: IndexVersion[],
+  locks: Map<string, string[]>,
+): Outcome {
+  const locked = (locks.get(dep.name) ?? []).filter((v) => satisfiesRequirement(requirement, v)).sort(semver.rcompare)[0];
+  if (!locked || !versions.some((v) => v.yanked && v.version === locked)) return null;
+  return { skipped: { identifier: dep.name, origin: origin.kind, reason: 'locked-version-yanked', detail: locked } };
 }
 
 interface Located {
