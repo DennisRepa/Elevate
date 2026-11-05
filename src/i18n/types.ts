@@ -44,6 +44,8 @@ export interface Translations {
     align: string;
     /** Internal package from a private registry. */
     internal: string;
+    /** Only Cargo.lock changes: the locked version moves, the requirement stays. */
+    lock: string;
     /** The declaration is shared with other crates (Cargo `workspace = true`). */
     shared: (count: number) => string;
   };

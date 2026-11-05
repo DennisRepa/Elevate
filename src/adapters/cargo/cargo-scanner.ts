@@ -40,7 +40,8 @@ import {
 } from './cargo-requirement.js';
 import { parseCargoManifest } from './cargo-toml.js';
 import type { DependencyDeclaration, DependencySection } from './cargo-toml.js';
-import { selectVersion } from './cargo-versions.js';
+import { readLockedVersions } from './cargo-lockfile.js';
+import { eligibleVersions, selectVersion } from './cargo-versions.js';
 
 const CONCURRENCY = 6;
 const DIFF_ORDER: Record<string, number> = { major: 0, minor: 1, patch: 2 };
@@ -63,6 +64,7 @@ export class CargoDependencyAdapter implements DependencyReaderPort {
     if (!pkg) return { candidates: [], skipped: [] };
 
     const own = readDeclarations(pkg.manifest_path);
+    const locks = readLockedVersions(join(metadata.workspace_root, 'Cargo.lock'));
     const rootManifest = join(metadata.workspace_root, 'Cargo.toml');
     const root = readDeclarations(rootManifest);
     const groups = groupDependencies(pkg.dependencies);
@@ -82,7 +84,7 @@ export class CargoDependencyAdapter implements DependencyReaderPort {
         return target ? alignment(primary, target, located, common) : null;
       }
       if (!primary.source || primary.source.startsWith('git+')) return null;
-      const outcome = await this.registryOutcome(primary, located, pkg, metadata, common, context);
+      const outcome = await this.registryOutcome(primary, located, pkg, metadata, locks, common, context);
       const other = group.find((d) => d !== primary && !sameRequirement(d.req, primary.req));
       if (outcome && 'candidate' in outcome && other) {
         // Only the declarations that match the scanned requirement are rewritten; say what is left.
@@ -115,6 +117,7 @@ export class CargoDependencyAdapter implements DependencyReaderPort {
     located: Located | undefined,
     pkg: MetadataPackage,
     metadata: CargoMetadata,
+    locks: Map<string, string[]>,
     common: { scope: 'prod' | 'dev'; qualifier: string | undefined },
     context: ScanContext,
   ): Promise<Outcome> {
@@ -162,7 +165,8 @@ export class CargoDependencyAdapter implements DependencyReaderPort {
       return null;
     }
     const newRange = rewriteRequirement(literal, latest);
-    if (newRange === literal) return null;
+    // The requirement already allows the newest release: only the lock file can be behind.
+    if (newRange === literal) return lockOutcome(dep, literal, origin, versions, pkg, metadata, locks, common, context);
 
     const tag = semver.prerelease(latest) ? (extractPreReleaseTag(latest) ?? 'PRE') : undefined;
     const diff = cargoDiff(floor, latest);
@@ -185,6 +189,51 @@ export class CargoDependencyAdapter implements DependencyReaderPort {
     };
     return { candidate };
   }
+}
+
+/**
+ * The lock file holds an older version than the requirement allows. Offered only when the
+ * requirement itself needs no change, so a crate never appears twice.
+ */
+function lockOutcome(
+  dep: MetadataDependency,
+  requirement: string,
+  origin: DependencyOrigin,
+  versions: IndexVersion[],
+  pkg: MetadataPackage,
+  metadata: CargoMetadata,
+  locks: Map<string, string[]>,
+  common: { scope: 'prod' | 'dev'; qualifier: string | undefined },
+  context: ScanContext,
+): Outcome {
+  const locked = (locks.get(dep.name) ?? []).filter((v) => satisfiesRequirement(requirement, v)).sort(semver.rcompare)[0];
+  if (!locked) return null;
+
+  const options = { channel: context.channel, rustVersion: pkg.rust_version ?? undefined };
+  const allowed = versions.filter((v) => satisfiesRequirement(requirement, v.version));
+  const newer = eligibleVersions(allowed, options).filter((v) => semver.gt(v, locked));
+  const latest = newer[0];
+  if (!latest) return null;
+
+  const lockFile = join(metadata.workspace_root, 'Cargo.lock');
+  return {
+    candidate: {
+      coordinate: { identifier: dep.name, artifact: dep.name, ecosystem: 'cargo', ...(dep.registry ? { registry: dep.registry } : {}) },
+      currentRange: locked,
+      currentClean: locked,
+      latest,
+      newRange: latest,
+      diff: cargoDiff(locked, latest),
+      scope: common.scope,
+      // A release the requirement allows is compatible by definition, so it is safe to preselect.
+      selected: true,
+      origin,
+      action: 'lock',
+      declaration: { file: lockFile, kind: 'lockfile', displayPath: display(context.rootDir, lockFile) },
+      availableVersions: newer,
+      ...(common.qualifier ? { qualifier: common.qualifier } : {}),
+    },
+  };
 }
 
 interface Located {

@@ -43,6 +43,7 @@ export const en: Translations = {
     prod: '(prod/compile)',
     align: '[Align]',
     internal: '[Internal]',
+    lock: '[Lock]',
     shared: (count) => `[+${count} crates]`,
   },
   status: {
